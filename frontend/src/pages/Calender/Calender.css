@@ -1,0 +1,595 @@
+.calender-page-container .calender-contents {
+  min-height: 70vh;
+  background: #fff;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.calender-page-container .calender-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+}
+
+.calender-page-header {
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.calender-page-header h1 {
+  font-size: 1.875rem; /* 30px */
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.calender-page-header .calender-nav-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.calender-page-header .calender-nav-controls button {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  cursor: pointer;
+  text-transform: uppercase;
+  font-weight: 600;
+  transition: all 0.2s ease-in-out;
+  background-color: transparent;
+  border: 1px solid #ccc;
+  font-size: 0.875rem;
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+}
+
+.calender-page-header .calender-nav-controls button:hover {
+  color: #5271ff;
+  border-color: rgb(82, 113, 255, 0.2);
+}
+
+.calender-page-container .view-selector-btns {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.calender-page-container .view-selector-btns button {
+  width: 100%;
+  font-size: 0.875rem;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  background-color: transparent;
+  border: 1px solid #e5e7eb;
+  text-align: center;
+  cursor: pointer;
+  font-weight: 600;
+  text-transform: uppercase;
+  transition: all 0.2s ease-in-out;
+}
+
+.calender-page-container .view-selector-btns button.day-active,
+.calender-page-container .view-selector-btns button.week-active,
+.calender-page-container .view-selector-btns button.month-active {
+  border-color: rgb(82, 113, 255, 0.2);
+  background-color: rgb(82, 113, 255, 0.2);
+}
+
+.calender-page-container .view-selector-btns button:hover {
+  border-color: rgb(82, 113, 255, 0.2);
+  background-color: rgb(82, 113, 255, 0.2);
+}
+
+.calender-page-container .daily-view-date {
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin: 1rem 0;
+}
+
+.calender-page-container .daily-view-contents {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  margin-bottom: 100px;
+}
+
+.calender-page-container .daily-view-contents-left {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.calender-page-container .daily-view-contents-left .daily-pill-info-box {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.calender-page-container .daily-view-contents-left .daily-pill-info-box-left {
+  display: flex;
+  gap: 0.5rem;
+  /* align-items: center; */
+}
+
+.calender-page-container
+  .daily-view-contents-left
+  .daily-pill-info-box-left
+  h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.calender-page-container
+  .daily-view-contents-left
+  .daily-pill-info-box-left
+  .time {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.calender-page-container .daily-view-contents-left .pill-status-circle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  margin-top: 3px;
+}
+
+.calender-page-container .daily-view-contents-left .pill-status-circle.missed {
+  background-color: #dc143c;
+}
+
+.calender-page-container .daily-view-contents-left .pill-status-circle.pending {
+  background-color: #5271ff;
+}
+
+.calender-page-container .daily-view-contents-left .pill-status-circle.taken {
+  background-color: #1dc55a;
+}
+
+.calender-page-container .daily-view-contents-left .pill-status-circle.skipped {
+  background-color: #f1a727;
+}
+
+.calender-page-container .daily-view-contents-left .pill-status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  /* color: #1dc55a;
+  background-color: #daf9e5; */
+  /* border: 1px solid #e5e7eb; */
+  padding: 0.3rem 1rem;
+  border-radius: 999px;
+  display: block;
+}
+
+.calender-page-container .daily-view-contents-left .pill-status.missed {
+  color: #dc143c;
+  background-color: rgba(220, 20, 60, 0.2);
+}
+
+.calender-page-container .daily-view-contents-left .pill-status.pending {
+  color: #5271ff;
+  background-color: rgba(82, 113, 255, 0.2);
+}
+
+.calender-page-container .daily-view-contents-left .pill-status.taken {
+  color: #1dc55a;
+  background-color: #daf9e5;
+}
+
+.calender-page-container .daily-view-contents-left .pill-status.skipped {
+  color: #f1a727;
+  background-color: rgba(241, 167, 39, 0.2);
+}
+
+.calender-page-container .daily-view-contents-right {
+  /* background-color: rgb(82, 113, 255, 0.2); */
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1rem;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.calender-page-container .daily-view-contents-right-top {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.calender-page-container .daily-view-contents-right-top .total-pills,
+.calender-page-container .daily-view-contents-right-top .taken-pills {
+  display: flex;
+  flex-direction: column;
+  /* gap: 0.5rem; */
+  background-color: #fff;
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+
+.calender-page-container .daily-view-contents-right-top .total-pills {
+  background-color: rgb(82, 113, 255, 0.2);
+}
+
+.calender-page-container .daily-view-contents-right-top .taken-pills {
+  background-color: #daf9e5;
+}
+
+.calender-page-container .daily-view-contents-right-top .total-pills h3,
+.calender-page-container .daily-view-contents-right-top .taken-pills h3 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.calender-page-container .daily-view-contents-right-top .total-pills h3 {
+  color: #5271ff;
+}
+
+.calender-page-container .daily-view-contents-right-top .taken-pills h3 {
+  color: #1dc55a;
+}
+
+.calender-page-container .daily-view-contents-right-top .total-pills p,
+.calender-page-container .daily-view-contents-right-top .taken-pills p {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.calender-page-container .today-date-pills {
+  font-size: 1.25rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.calender-page-container .daily-view-missed-meds {
+  margin-top: 1rem;
+}
+
+.calender-page-container .daily-view-missed-meds .missed-pills-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #4b5563;
+  margin-bottom: 1rem;
+}
+
+.calender-page-container .missed-pills-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.calender-page-container .missed-pill-box {
+  padding: 0.5rem 1rem;
+  background: rgba(220, 20, 60, 0.2);
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #dc143c;
+  transition: all 0.2s ease-in-out;
+}
+
+.calender-page-container .legend-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  position: absolute;
+  bottom: 0rem;
+  left: 0;
+
+  padding: 1.5rem;
+}
+
+.calender-page-container .legend-container h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.calender-page-container .legends {
+  display: flex;
+  gap: 0.8rem;
+}
+
+.calender-page-container .legend {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.calender-page-container .legend .legend-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #e5e7eb;
+}
+
+.calender-page-container .legend .legend-icon.taken {
+  background-color: #1dc55a;
+}
+
+.calender-page-container .legend .legend-icon.missed {
+  background-color: #dc143c;
+}
+
+.calender-page-container .legend .legend-icon.skipped {
+  background-color: #f1a727;
+}
+
+.calender-page-container .legend .legend-icon.pending {
+  background-color: #5271ff;
+}
+
+.calender-page-container .legend span {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+/* Weekly Calender styling */
+
+.calender-page-container .weekly-view-contents-left {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.calender-page-container .weekly-pill-info-box {
+  display: flex;
+  gap: 0.5rem;
+  border: 1px solid #e5e7eb;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.calender-page-container .weekly-pill-info-box .week-day {
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+.calender-page-container .weekly-pill-info-box .date {
+  font-size: 2rem;
+  font-weight: 600;
+}
+
+.calender-page-container .weekly-pill-info-box .status-label,
+.calender-page-container .monthly-view-contents-left-bottom .status-label {
+  width: 5%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-radius: 0 0.5rem 0.5rem 0;
+  /* background-color: chocolate; */
+}
+
+.calender-page-container .weekly-pill-info-box .status-label.taken,
+.calender-page-container
+  .monthly-view-contents-left-bottom
+  .status-label.taken {
+  background-color: #daf9e5;
+}
+
+.calender-page-container .weekly-pill-info-box .status-label.missed,
+.calender-page-container
+  .monthly-view-contents-left-bottom
+  .status-label.missed {
+  background-color: rgba(220, 20, 60, 0.2);
+}
+
+.calender-page-container .weekly-pill-info-box .status-label.skipped,
+.calender-page-container
+  .monthly-view-contents-left-bottom
+  .status-label.skipped {
+  background-color: #fdfbd6;
+}
+
+.calender-page-container .weekly-pill-info-box .status-label.pending,
+.calender-page-container
+  .monthly-view-contents-left-bottom
+  .status-label.pending {
+  background-color: rgba(82, 113, 255, 0.2);
+}
+
+.calender-page-container .weekly-view-contents-right-top {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+
+.calender-page-container .weekly-view-contents-right-top .total-missed,
+.calender-page-container .weekly-view-contents-right-top .total-taken,
+.calender-page-container .weekly-view-contents-right-top .total-skipped {
+  display: flex;
+  flex-direction: column;
+  background-color: #fff;
+  padding: 1rem;
+  border-radius: 0.5rem;
+}
+
+.calender-page-container .weekly-view-contents-right-top .total-missed {
+  background-color: rgba(220, 20, 60, 0.2);
+}
+
+.calender-page-container .weekly-view-contents-right-top .total-taken {
+  background-color: #daf9e5;
+}
+
+.calender-page-container .weekly-view-contents-right-top .total-skipped {
+  background-color: #fdfbd6;
+}
+
+.calender-page-container .weekly-view-contents-right-top .total-missed h3,
+.calender-page-container .weekly-view-contents-right-top .total-taken h3,
+.calender-page-container .weekly-view-contents-right-top .total-skipped h3 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.calender-page-container .weekly-view-contents-right-top .total-taken h3 {
+  color: #1dc55a;
+}
+
+.calender-page-container .weekly-view-contents-right-top .total-missed h3 {
+  color: #dc143c;
+}
+
+.calender-page-container .weekly-view-contents-right-top .total-skipped h3 {
+  color: #f1a727;
+}
+
+.calender-page-container .weekly-view-contents-right-top .total-missed p,
+.calender-page-container .weekly-view-contents-right-top .total-taken p,
+.calender-page-container .weekly-view-contents-right-top .total-skipped p {
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #4b5563;
+}
+
+/* Monthly Calender styling */
+.calender-page-container .monthly-view-contents-left-top {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+}
+
+.calender-page-container .monthly-view-contents-left-top .date {
+  font-size: 1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #4b5563;
+  padding: 0.3rem 1rem;
+}
+
+.calender-page-container .monthly-view-contents-left-bottom {
+}
+
+.calender-page-container .monthly-pill-info-boxes {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.calender-page-container .monthly-pill-info-box {
+  border: 1px solid #e5e7eb;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.calender-page-container .monthly-pill-info-box.not-in-month {
+  background-color: #e5e7eb;
+}
+
+.calender-page-container .monthly-pill-info-box .monthly-date {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.calender-page-container .monthly-pill-info-box.not-in-month .monthly-date {
+  opacity: 0.3;
+}
+
+/* MEDIA QUERIES FOR RESPONSIVENESS */
+@media screen and (max-width: 768px) {
+  .calender-page-header {
+    gap: 1.2rem;
+
+    flex-direction: column;
+  }
+
+  .calender-page-header h1 {
+    font-size: 1.6rem;
+  }
+
+  .calender-page-container .daily-view-contents {
+    grid-template-columns: 1fr;
+  }
+
+  .calender-page-container .daily-view-contents-left {
+    grid-template-columns: repeat(1, 1fr);
+    max-height: 600px;
+    overflow-y: auto;
+  }
+
+  .calender-page-container .legends {
+    gap: 0.4rem;
+  }
+
+  .calender-page-container .legend .legend-icon {
+    width: 15px;
+    height: 15px;
+  }
+
+  /* Weekly Calender styling */
+
+  .calender-page-container .weekly-view-contents-left {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .calender-page-container .weekly-pill-info-box {
+    gap: 0rem;
+  }
+
+  .calender-page-container .weekly-pill-info-box .date {
+    font-size: 1.7rem;
+  }
+
+  .calender-page-container .weekly-view-contents-right-top .total-missed h3,
+  .calender-page-container .weekly-view-contents-right-top .total-taken h3,
+  .calender-page-container .weekly-view-contents-right-top .total-skipped h3 {
+    font-size: 2rem;
+  }
+
+  /* Monthly Calender styling */
+
+  .calender-page-container .monthly-view-contents-left {
+    overflow-x: auto;
+  }
+
+  .calender-page-container .monthly-view-contents-left-top {
+    width: fit-content;
+  }
+
+  .calender-page-container .monthly-pill-info-box {
+    width: 63px;
+    height: 70px;
+  }
+}

@@ -1,0 +1,35 @@
+.footer-container {
+  /* background-color: #5271ff; */
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  /* color: #fff; */
+  border-radius: 0.5rem;
+  margin-bottom: 2rem;
+}
+
+.footer-container .footer-logo {
+  width: 200px;
+}
+
+.footer-container p {
+  text-transform: uppercase;
+}
+
+.footer-links {
+  display: none;
+}
+
+.footer-links ul {
+  display: flex;
+  align-items: center;
+  gap: 4rem;
+}
+
+.footer-links .footer-link {
+  text-transform: uppercase;
+}
+
+.footer-links .footer-link:hover {
+  text-decoration: underline;
+}
