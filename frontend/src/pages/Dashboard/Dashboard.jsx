@@ -325,10 +325,6 @@ const Dashboard = () => {
                                 ? "Your full name"
                                 : "Enter full name"
                             }
-                            disabled={
-                              forWhoInputs[prescription._id]?.relation ===
-                              "myself"
-                            }
                           />
                         </div>
                       </div>

@@ -18,7 +18,7 @@ const callRouter = Router();
 async function makeInteractiveCall(phoneNumber, notificationId) {
   try {
     const call = await client.calls.create({
-      url: `https://31044bfef1fe.ngrok-free.app/api/calls/handle?notificationId=${notificationId}`,
+      url: `http://18.218.16.247/api/calls/handle?notificationId=${notificationId}`,
       to: `+${phoneNumber}`,
       from: process.env.TWILIO_PHONE_NUMBER,
     });
@@ -153,6 +153,7 @@ async function notifyCaregivers(user, reminders) {
       }
       prescriptionsMap[prescription.username].push({
         name: prescription.name,
+        forWho: prescription.forWho,
       });
     }
   });
@@ -164,17 +165,17 @@ async function notifyCaregivers(user, reminders) {
 
     caregiver.forPersons.forEach((person) => {
       if (prescriptionsMap[person]) {
-        medicationsToNotify = [
-          ...medicationsToNotify,
-          ...prescriptionsMap[person],
-        ];
+        medicationsToNotify.push(...prescriptionsMap[person]);
       }
     });
 
     if (medicationsToNotify.length === 0) continue;
 
+    // Pick the username(s) linked to the skipped meds
+    const skippedFor = Object.keys(prescriptionsMap).join(", ");
+
     const message =
-      `⚠️ User ${user.phoneNumber} has skipped:\n` +
+      `⚠️ ${skippedFor} has skipped:\n` +
       medicationsToNotify.map((m) => `• ${m.name}`).join("\n");
 
     try {
@@ -241,7 +242,9 @@ export function startReminderFollowupCron() {
 async function sendFollowupReminder(user, notification, resendCount) {
   try {
     const medList = notification.medications.join(", ");
-    const message = `It's time to take your medications: ${medList}.\n\nPlease reply:\nD – if you have taken them\nS – if you need to skip this dose\n\nThank you for using CareTrackRX.`;
+    const message = `
+    Reminder (${resendCount}/2)
+    It's time to take your medications: ${medList}.\n\nPlease reply:\nD – if you have taken them\nS – if you need to skip this dose\n\nThank you for using CareTrackRX.`;
 
     if (user.notificationType === "call" && resendCount === 0) {
       // Only make call for first follow-up, then use SMS

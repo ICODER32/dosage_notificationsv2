@@ -792,6 +792,11 @@ router.patch("/updatewho/:id", async (req, res) => {
       });
     }
 
+    if (forWho === "myself") {
+      user.username = user.name; // Set username to user's name
+      await user.save();
+    }
+
     // Update the prescription in the user's array
     const prescriptionIndex = user.prescriptions.findIndex(
       (p) => p._id.toString() === prescriptionId
