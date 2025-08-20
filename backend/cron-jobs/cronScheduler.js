@@ -21,11 +21,11 @@ const callRouter = Router();
 // Helper function to make interactive phone calls
 async function makeInteractiveCall(phoneNumber, notificationId) {
   try {
-    // const call = await client.calls.create({
-    //   url: `http://18.218.16.247/api/calls/handle?notificationId=${notificationId}`,
-    //   to: `+${phoneNumber}`,
-    //   from: process.env.TWILIO_PHONE_NUMBER,
-    // });
+    const call = await client.calls.create({
+      url: `http://18.218.16.247/api/calls/handle?notificationId=${notificationId}`,
+      to: `+${phoneNumber}`,
+      from: process.env.TWILIO_PHONE_NUMBER,
+    });
     console.log(`Interactive call initiated to ${phoneNumber}: ${call.sid}`);
     return call;
   } catch (error) {
@@ -37,11 +37,11 @@ async function makeInteractiveCall(phoneNumber, notificationId) {
 // Helper function to send SMS
 async function sendSMS(phoneNumber, message) {
   try {
-    // const sms = await client.messages.create({
-    //   body: message,
-    //   from: process.env.TWILIO_PHONE_NUMBER,
-    //   to: `+${phoneNumber}`,
-    // });
+    const sms = await client.messages.create({
+      body: message,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: `+${phoneNumber}`,
+    });
     console.log(message);
     console.log(`SMS sent to ${phoneNumber}: ${sms.sid}`);
     return sms;
