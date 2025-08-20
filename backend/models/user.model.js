@@ -37,10 +37,7 @@ const prescriptionSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
-  username: {
-    type: String,
-    default: "",
-  },
+
   timesToTake: {
     type: Number,
     required: true,
