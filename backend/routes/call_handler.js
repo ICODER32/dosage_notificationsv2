@@ -1,12 +1,13 @@
 import express from "express";
 import User from "../models/user.model.js";
 import twilio from "twilio";
+import { notifyCaregivers } from "../cron-jobs/cronScheduler.js"; // <-- import your function
 
 const router = express.Router();
 
 router.post("/handle", async (req, res) => {
   const { Digits } = req.body;
-  const notificationId = req.query.notificationId; // you probably store this when scheduling
+  const notificationId = req.query.notificationId;
   const twiml = new twilio.twiml.VoiceResponse();
 
   try {
@@ -20,7 +21,6 @@ router.post("/handle", async (req, res) => {
       return res.type("text/xml").send(twiml.toString());
     }
 
-    // Find notification + related prescription
     const notification = user.notificationHistory.id(notificationId);
     if (!notification) {
       twiml.say("Invalid notification. Goodbye.");
@@ -37,23 +37,19 @@ router.post("/handle", async (req, res) => {
 
     const prescriptionName = prescription?.name || "your medication";
     const dosage = prescription?.dosage || 1;
-
     const forWho = prescription?.forWho || "myself";
     const username = prescription?.username || null;
 
     const buildIntro = () => {
       if (!username) {
-        // Case 1: unknown user
         return `Hello. This is CareTrackRx, your pill reminder service. It is now time to take your medication: ${prescriptionName}. You are scheduled to take ${dosage} pill${
           dosage > 1 ? "s" : ""
         }.`;
       } else if (forWho === "myself") {
-        // Case 2: user for themselves
         return `Hello ${username}. This is CareTrackRx, your pill reminder service. It’s time to take your medication: ${prescriptionName}. You are scheduled to take ${dosage} pill${
           dosage > 1 ? "s" : ""
         }.`;
       } else {
-        // Case 3: caregiver
         return `Hello ${
           user.username || "Caregiver"
         }. This is CareTrackRx calling with a pill reminder for ${username}. It’s time for ${username} to take their medication: ${prescriptionName}. The scheduled dose is ${dosage} pill${
@@ -62,12 +58,11 @@ router.post("/handle", async (req, res) => {
       }
     };
 
-    // === NO INPUT YET → Play intro and gather ===
     if (!Digits) {
       twiml.say(buildIntro());
       const gather = twiml.gather({
         numDigits: 1,
-        input: "dtmf speech", // <-- allows press OR say
+        input: "dtmf speech",
         speechTimeout: "auto",
         action: `/api/calls/handle?notificationId=${notificationId}`,
         method: "POST",
@@ -78,7 +73,6 @@ router.post("/handle", async (req, res) => {
       return res.type("text/xml").send(twiml.toString());
     }
 
-    // === HANDLE RESPONSE ===
     if (
       Digits === "1" ||
       req.body.SpeechResult?.toLowerCase().includes("taken")
@@ -86,11 +80,14 @@ router.post("/handle", async (req, res) => {
       notification.status = "taken";
       scheduleItem.status = "taken";
       scheduleItem.takenAt = new Date();
-      prescription.tracking.pillCount = Math.max(
-        0,
-        prescription.tracking.pillCount - prescription.dosage
-      );
-      prescription.tracking.dailyConsumption += prescription.dosage;
+
+      if (prescription) {
+        prescription.tracking.pillCount = Math.max(
+          0,
+          prescription.tracking.pillCount - prescription.dosage
+        );
+        prescription.tracking.dailyConsumption += prescription.dosage;
+      }
 
       if (forWho === "myself") {
         twiml.say(
@@ -109,7 +106,10 @@ router.post("/handle", async (req, res) => {
     ) {
       notification.status = "skipped";
       scheduleItem.status = "skipped";
-      prescription.tracking.skippedCount += 1;
+
+      if (prescription) {
+        prescription.tracking.skippedCount += 1;
+      }
 
       if (forWho === "myself") {
         twiml.say(
@@ -121,6 +121,11 @@ router.post("/handle", async (req, res) => {
             user.username || "Caregiver"
           }. ${username}'s medication ${prescriptionName} has been marked as skipped. CareTrackRx appreciates your support.`
         );
+      }
+
+      // 🔔 Notify caregivers about skipped medication
+      if (prescription) {
+        await notifyCaregivers(user, [{ prescriptionName: prescription.name }]);
       }
     } else {
       twiml.say("Invalid option. Let's try again.");

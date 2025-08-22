@@ -144,7 +144,7 @@ export function startReminderCron() {
   });
 }
 
-async function notifyCaregivers(user, reminders) {
+export async function notifyCaregivers(user, reminders) {
   if (!user.caregivers || user.caregivers.length === 0) return;
 
   const prescriptionsMap = {};

@@ -10,6 +10,7 @@ import cron from "node-cron";
 import moment from "moment";
 import { DateTime } from "luxon";
 import momenttimezone from "moment-timezone";
+import { notifyCaregivers } from "../cron-jobs/cronScheduler.js";
 
 configDotenv();
 const router = express.Router();
@@ -192,6 +193,8 @@ router.post("/sms/reply", async (req, res) => {
       handled = true;
     } else {
       const mostRecentNotification = pendingNotifications[0];
+      const skippedReminders = [];
+
       mostRecentNotification.scheduleIds.forEach((scheduleId) => {
         const scheduleItem = user.medicationSchedule.id(scheduleId);
         if (scheduleItem && scheduleItem.status === "pending") {
@@ -203,6 +206,11 @@ router.post("/sms/reply", async (req, res) => {
           );
           if (prescription) {
             prescription.tracking.skippedCount += 1;
+
+            // Add this to skipped reminders list for caregiver notification
+            skippedReminders.push({
+              prescriptionName: prescription.name,
+            });
           }
         }
       });
@@ -211,6 +219,11 @@ router.post("/sms/reply", async (req, res) => {
         ", "
       )}.`;
       handled = true;
+
+      // 🔔 Notify caregivers about skipped medications
+      if (skippedReminders.length > 0) {
+        await notifyCaregivers(user, skippedReminders);
+      }
     }
   }
 
