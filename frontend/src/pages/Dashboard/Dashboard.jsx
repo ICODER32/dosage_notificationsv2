@@ -19,6 +19,7 @@ import { IoMdInformationCircleOutline, IoMdClose } from "react-icons/io";
 import { FaRegEdit } from "react-icons/fa";
 import clockIcon from "../../assets/clock-icon.png";
 import "./Dashboard.css";
+import { toast } from "react-toastify";
 
 const Dashboard = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);
@@ -100,6 +101,16 @@ const Dashboard = () => {
   };
 
   const saveForWho = async () => {
+    // if any input is empty display message input all
+    const allFilled = Object.values(forWhoInputs).every(
+      (input) => input.relation && input.name
+    );
+    if (!allFilled) {
+      toast.error("Please fill out all fields.");
+
+      return;
+    }
+
     setSaving(true);
     try {
       const updatePromises = Object.entries(forWhoInputs).map(([id, data]) => {
