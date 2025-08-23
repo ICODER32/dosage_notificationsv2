@@ -42,7 +42,7 @@ router.post("/handle", async (req, res) => {
 
     const buildIntro = () => {
       if (!username) {
-        return `Hello. This is CareTrackRx, your pill reminder service. It is now time to take your medication: ${prescriptionName}. You are scheduled to take ${dosage} pill${
+        return `Welcome to CareTrackRx, your pill reminder service. It is now time to take your medication: ${prescriptionName}. You are scheduled to take ${dosage} pill${
           dosage > 1 ? "s" : ""
         }.`;
       } else if (forWho === "myself") {

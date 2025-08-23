@@ -337,6 +337,7 @@ const CaregiverPage = () => {
                     type="tel"
                     name="phoneNumber"
                     value={formData.phoneNumber}
+                    maxLength={10}
                     onChange={handleChange}
                     className="phone-number-input"
                     required

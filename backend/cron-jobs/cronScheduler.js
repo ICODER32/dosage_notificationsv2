@@ -180,7 +180,7 @@ export async function notifyCaregivers(user, reminders) {
     const skippedFor = Object.keys(prescriptionsMap).join(", ");
 
     const message =
-      `⚠️ ${skippedFor} has skipped:\n` +
+      `⚠️ ${skippedFor} has missed:\n` +
       medicationsToNotify.map((m) => `• ${m.name}`).join("\n");
 
     try {

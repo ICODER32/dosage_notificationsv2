@@ -192,6 +192,9 @@ const Navbar = () => {
                 >
                   Caregiver
                 </NavLink>
+                <button onClick={handleLogout} className="logout-btn nav-link">
+                  logout
+                </button>
               </>
             )}
           </div>
@@ -218,9 +221,9 @@ const Navbar = () => {
                 </div>
               </>
             ) : (
-              <Link to="/login" className="btn btn-login">
-                Login
-              </Link>
+              <a href="http://18.218.16.247/" className="btn btn-login">
+                Add to home
+              </a>
             )}
 
             {/* <div className="avatar">

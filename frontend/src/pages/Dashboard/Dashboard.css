@@ -297,6 +297,9 @@
 
 .dashboard-top-container .prescription-card .details-value img {
   width: 20px;
+  max-width: 20px;
+  max-height: 20px;
+  margin-top: 2.5px;
 }
 
 .dashboard-top-container .prescription-card-footer {

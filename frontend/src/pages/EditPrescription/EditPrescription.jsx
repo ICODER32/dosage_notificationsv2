@@ -134,29 +134,22 @@ export default function EditPrescription() {
     }));
   };
 
-  const handleAddTime = () => {
-    if (newTime) {
-      // Convert the 24-hour time to 12-hour format
-      const formattedTime = formatTimeTo12Hour(newTime);
-
-      if (formattedTime && !reminderTimes.includes(formattedTime)) {
-        setReminderTimes([...reminderTimes, formattedTime]);
-        setNewTime("");
-      }
-    }
-  };
-
   const handleRemoveTime = (timeToRemove) => {
     setReminderTimes(reminderTimes.filter((time) => time !== timeToRemove));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e, updatedTimes = null) => {
+    if (e) {
+      e.preventDefault();
+    }
     setSaving(true);
 
     try {
+      // Use updatedTimes if provided, otherwise fallback to state
+      const timesToUse = updatedTimes || reminderTimes;
+
       // Convert 12-hour times back to 24-hour for the backend
-      const times24 = reminderTimes.map((time) => {
+      const times24 = timesToUse.map((time) => {
         const [timePart, period] = time.split(" ");
         let [hours, minutes] = timePart.split(":");
 
@@ -171,9 +164,7 @@ export default function EditPrescription() {
 
       const response = await fetch(`/api/user/update/${id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
           phoneNumber,
@@ -181,21 +172,29 @@ export default function EditPrescription() {
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to update prescription");
-      }
+      if (!response.ok) throw new Error("Failed to update prescription");
 
       toast.success("Changes saved successfully!");
-
-      // Redirect back to dashboard or relative page
-      setTimeout(() => {
-        navigate("/");
-      }, 2000);
     } catch (err) {
       toast.error(err.message || "Failed to save changes.");
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAddTime = async () => {
+    if (newTime) {
+      const formattedTime = formatTimeTo12Hour(newTime);
+
+      if (formattedTime && !reminderTimes.includes(formattedTime)) {
+        const updatedTimes = [...reminderTimes, formattedTime];
+        setReminderTimes(updatedTimes);
+        setNewTime("");
+
+        // Pass updated times directly
+        await handleSubmit(null, updatedTimes);
+      }
     }
   };
 
