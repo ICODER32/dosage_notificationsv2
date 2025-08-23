@@ -141,31 +141,42 @@ router.post("/sms/reply", async (req, res) => {
         .filter((n) => n.status === "skipped")
         .sort((a, b) => b.sentAt - a.sentAt);
 
+      const takenNotifications = user.notificationHistory
+        .filter((n) => n.status === "taken")
+        .sort((a, b) => b.sentAt - a.sentAt);
+
       if (missedNotifications.length > 0) {
         const lastMissed = missedNotifications[0];
         const missedMeds = lastMissed.medications.join(", ");
-        // Format the time in 12-hour format in the user's timezone
         const missedTime = moment(lastMissed.scheduledTime)
           .tz(user.timezone)
           .format("h:mm A");
 
         reply = `You don't have any pending medications to confirm.\nYour ${missedMeds} dose at ${missedTime} was already marked as missed.`;
+      } else if (takenNotifications.length > 0) {
+        const lastTaken = takenNotifications[0];
+        const takenMeds = lastTaken.medications.join(", ");
+        const takenTime = moment(lastTaken.scheduledTime)
+          .tz(user.timezone)
+          .format("h:mm A");
+
+        reply = `You don't have any pending medications to confirm.\nThe last medication you took was ${takenMeds} at ${takenTime}.`;
       } else {
         reply = "You don't have any pending medications to confirm.";
       }
+      console.log(reply);
+
       handled = true;
     } else {
       const mostRecentNotification = pendingNotifications[0];
       mostRecentNotification.status = "taken";
 
-      // Update ALL linked schedule items
       mostRecentNotification.scheduleIds.forEach((scheduleId) => {
         const scheduleItem = user.medicationSchedule.id(scheduleId);
         if (scheduleItem && scheduleItem.status === "pending") {
           scheduleItem.status = "taken";
           scheduleItem.takenAt = now;
 
-          // Update prescription counts
           const prescription = user.prescriptions.id(
             scheduleItem.prescriptionId
           );
@@ -183,13 +194,42 @@ router.post("/sms/reply", async (req, res) => {
       handled = true;
     }
   }
+
   if (!handled && lowerMsg === "s") {
     const pendingNotifications = user.notificationHistory
       .filter((n) => n.status === "pending")
       .sort((a, b) => b.sentAt - a.sentAt);
 
     if (pendingNotifications.length === 0) {
-      reply = "You don't have any pending medications to skip.";
+      // no pending → look for last taken / skipped
+      const skippedNotifications = user.notificationHistory
+        .filter((n) => n.status === "skipped")
+        .sort((a, b) => b.sentAt - a.sentAt);
+
+      const takenNotifications = user.notificationHistory
+        .filter((n) => n.status === "taken")
+        .sort((a, b) => b.sentAt - a.sentAt);
+
+      if (skippedNotifications.length > 0) {
+        const lastSkipped = skippedNotifications[0];
+        const meds = lastSkipped.medications.join(", ");
+        const time = moment(lastSkipped.scheduledTime)
+          .tz(user.timezone)
+          .format("h:mm A");
+
+        reply = `You don't have any pending medications to skip.\nThe last medication you skipped was ${meds} at ${time}.`;
+      } else if (takenNotifications.length > 0) {
+        const lastTaken = takenNotifications[0];
+        const meds = lastTaken.medications.join(", ");
+        const time = moment(lastTaken.scheduledTime)
+          .tz(user.timezone)
+          .format("h:mm A");
+
+        reply = `You don't have any pending medications to skip.\nThe last medication you took was ${meds} at ${time}.`;
+      } else {
+        reply = "You don't have any pending medications to skip.";
+      }
+
       handled = true;
     } else {
       const mostRecentNotification = pendingNotifications[0];
@@ -200,14 +240,12 @@ router.post("/sms/reply", async (req, res) => {
         if (scheduleItem && scheduleItem.status === "pending") {
           scheduleItem.status = "skipped";
 
-          // Update prescription tracking
           const prescription = user.prescriptions.id(
             scheduleItem.prescriptionId
           );
           if (prescription) {
             prescription.tracking.skippedCount += 1;
 
-            // Add this to skipped reminders list for caregiver notification
             skippedReminders.push({
               prescriptionName: prescription.name,
             });
@@ -215,12 +253,15 @@ router.post("/sms/reply", async (req, res) => {
         }
       });
 
+      // 🔑 mark the notification itself as skipped
+      mostRecentNotification.status = "skipped";
+
       reply = `Skipped! You chose to skip your medications: ${mostRecentNotification.medications.join(
         ", "
       )}.`;
+      console.log(reply);
       handled = true;
 
-      // 🔔 Notify caregivers about skipped medications
       if (skippedReminders.length > 0) {
         await notifyCaregivers(user, skippedReminders);
       }
