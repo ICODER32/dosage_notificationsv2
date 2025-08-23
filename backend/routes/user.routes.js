@@ -506,12 +506,12 @@ router.post("/sms/reply", async (req, res) => {
           user.notificationType = "sms";
           user.flowStep = "done";
           reply = `Thanks for using CareTrackRx! You’ll continue to receive SMS notifications for your medication reminders.  
-For more details and history, please visit your dashboard: ${process.env.DASHBOARD_URL}`;
+For more details and history, please visit your dashboard: ${process.env.DASHBOARD_URL}. For assistance, reply with "H".`;
         } else if (msg === "2") {
           user.notificationType = "call";
           user.flowStep = "done";
           reply = `Thanks for using CareTrackRx! You’ll continue to receive Call notifications for your medication reminders.  
-For more details and history, please visit your dashboard: ${process.env.DASHBOARD_URL}`;
+For more details and history, please visit your dashboard: ${process.env.DASHBOARD_URL}. For assistance, reply with "H".`;
         } else {
           reply =
             "Please select a valid option:\n1. SMS notifications\n2. Phone call notifications";
