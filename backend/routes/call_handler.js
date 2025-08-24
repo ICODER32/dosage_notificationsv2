@@ -58,25 +58,22 @@ router.post("/handle", async (req, res) => {
       }
     };
 
+    // === NO DIGITS YET ===
     if (!Digits) {
       twiml.say(buildIntro());
       const gather = twiml.gather({
         numDigits: 1,
-        input: "dtmf speech",
-        speechTimeout: "auto",
         action: `/api/calls/handle?notificationId=${notificationId}`,
         method: "POST",
       });
       gather.say(
-        "If the medication has been taken, press 1 or say taken. If skipping this dose, press 2 or say skip."
+        "If the medication has been taken, press 1. If skipping this dose, press 2."
       );
       return res.type("text/xml").send(twiml.toString());
     }
 
-    if (
-      Digits === "1" ||
-      req.body.SpeechResult?.toLowerCase().includes("taken")
-    ) {
+    // === HANDLE TAKEN ===
+    if (Digits === "1") {
       notification.status = "taken";
       scheduleItem.status = "taken";
       scheduleItem.takenAt = new Date();
@@ -100,10 +97,10 @@ router.post("/handle", async (req, res) => {
           }. ${username}'s medication ${prescriptionName} has been marked as taken. CareTrackRx appreciates your support.`
         );
       }
-    } else if (
-      Digits === "2" ||
-      req.body.SpeechResult?.toLowerCase().includes("skip")
-    ) {
+    }
+
+    // === HANDLE SKIP ===
+    else if (Digits === "2") {
       notification.status = "skipped";
       scheduleItem.status = "skipped";
 
@@ -123,19 +120,21 @@ router.post("/handle", async (req, res) => {
         );
       }
 
-      // 🔔 Notify caregivers about skipped medication
+      // 🔔 Notify caregivers
       if (prescription) {
         await notifyCaregivers(user, [{ prescriptionName: prescription.name }]);
       }
-    } else {
+    }
+
+    // === INVALID INPUT ===
+    else {
       twiml.say("Invalid option. Let's try again.");
       const gather = twiml.gather({
         numDigits: 1,
-        input: "dtmf speech",
         action: `/api/calls/handle?notificationId=${notificationId}`,
         method: "POST",
       });
-      gather.say("Press 1 or say taken. Press 2 or say skip.");
+      gather.say("Press 1 for taken. Press 2 for skip.");
       return res.type("text/xml").send(twiml.toString());
     }
 
