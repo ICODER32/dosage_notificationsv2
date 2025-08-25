@@ -123,6 +123,7 @@ import { RxHamburgerMenu } from "react-icons/rx";
 import logo from "../assets/logo.png";
 // import avatar from "../assets/avatar.jpg";
 import "./Navbar.css"; // Import the new CSS file
+import AddToHomeButton from "./AddToHome";
 
 const Navbar = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);
@@ -212,18 +213,16 @@ const Navbar = () => {
                   <div className="noti-circle">3</div>
                 </div> */}
 
-                <button onClick={handleLogout} className="logout-btn">
+                {/* <button onClick={handleLogout} className="logout-btn">
                   <IoMdLogOut />
-                </button>
+                </button> */}
 
                 <div className="icon-box mobile-menu" onClick={closeMenu}>
                   <RxHamburgerMenu />
                 </div>
               </>
             ) : (
-              <a href="http://18.218.16.247/" className="btn btn-login">
-                Add to home
-              </a>
+              <AddToHomeButton />
             )}
 
             {/* <div className="avatar">
