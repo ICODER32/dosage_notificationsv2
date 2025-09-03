@@ -1,23 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-  Pill,
-  Clock,
-  Save,
-  Trash2,
-  Pause,
-  Play,
-  X,
-  ChevronDown,
-  ChevronUp,
-  ArrowLeft,
-} from "lucide-react";
-import { IoMdClose } from "react-icons/io";
+import { Pill, Clock, Save, Trash2, Pause, Play, X } from "lucide-react";
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import "./EditPrescription.css";
-import moment from "moment";
 
 export default function EditPrescription() {
   const phoneNumber = useSelector((state) => state.auth.phoneNumber);
@@ -29,7 +16,6 @@ export default function EditPrescription() {
   const [userData, setUserData] = useState(null);
   const [prescription, setPrescription] = useState(null);
   const [reminderTimes, setReminderTimes] = useState([]);
-  const [newTime, setNewTime] = useState("");
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -53,12 +39,28 @@ export default function EditPrescription() {
 
     // Convert to 12-hour format
     const period = hours >= 12 ? "PM" : "AM";
-    const hours12 = hours % 12 || 12; // Convert 0 to 12 for 12-hour format
+    const hours12 = hours % 12 || 12;
 
     // Format minutes with leading zero if needed
     const formattedMinutes = minutes.toString().padStart(2, "0");
 
     return `${hours12}:${formattedMinutes} ${period}`;
+  };
+
+  // Helper function to convert 12-hour format to 24-hour
+  const formatTimeTo24Hour = (time12h) => {
+    if (!time12h) return "";
+
+    const [time, period] = time12h.split(" ");
+    let [hours, minutes] = time.split(":");
+
+    if (period === "PM" && hours !== "12") {
+      hours = String(parseInt(hours, 10) + 12);
+    } else if (period === "AM" && hours === "12") {
+      hours = "00";
+    }
+
+    return `${hours.padStart(2, "0")}:${minutes}`;
   };
 
   const getData = async () => {
@@ -102,8 +104,9 @@ export default function EditPrescription() {
             });
           });
 
-        // Remove duplicates
-        setReminderTimes([...new Set(times)]);
+        // Remove duplicates and take only the required number of times
+        const uniqueTimes = [...new Set(times)];
+        setReminderTimes(uniqueTimes.slice(0, foundPrescription.timesToTake));
       }
     } catch (err) {
       setError(err.message);
@@ -134,33 +137,21 @@ export default function EditPrescription() {
     }));
   };
 
-  const handleRemoveTime = (timeToRemove) => {
-    setReminderTimes(reminderTimes.filter((time) => time !== timeToRemove));
+  const handleTimeChange = (index, newTime) => {
+    const updatedTimes = [...reminderTimes];
+    updatedTimes[index] = formatTimeTo12Hour(newTime);
+    setReminderTimes(updatedTimes);
+    handleSubmit(null, updatedTimes); // pass latest times
   };
 
-  const handleSubmit = async (e, updatedTimes = null) => {
+  const handleSubmit = async (e, updatedTimes = reminderTimes) => {
     if (e) {
       e.preventDefault();
     }
     setSaving(true);
 
     try {
-      // Use updatedTimes if provided, otherwise fallback to state
-      const timesToUse = updatedTimes || reminderTimes;
-
-      // Convert 12-hour times back to 24-hour for the backend
-      const times24 = timesToUse.map((time) => {
-        const [timePart, period] = time.split(" ");
-        let [hours, minutes] = timePart.split(":");
-
-        if (period === "PM" && hours !== "12") {
-          hours = String(parseInt(hours, 10) + 12);
-        } else if (period === "AM" && hours === "12") {
-          hours = "00";
-        }
-
-        return `${hours.padStart(2, "0")}:${minutes}`;
-      });
+      const times24 = updatedTimes.map((time) => formatTimeTo24Hour(time));
 
       const response = await fetch(`/api/user/update/${id}`, {
         method: "PATCH",
@@ -183,21 +174,6 @@ export default function EditPrescription() {
     }
   };
 
-  const handleAddTime = async () => {
-    if (newTime) {
-      const formattedTime = formatTimeTo12Hour(newTime);
-
-      if (formattedTime && !reminderTimes.includes(formattedTime)) {
-        const updatedTimes = [...reminderTimes, formattedTime];
-        setReminderTimes(updatedTimes);
-        setNewTime("");
-
-        // Pass updated times directly
-        await handleSubmit(null, updatedTimes);
-      }
-    }
-  };
-
   const handleDelete = async () => {
     const result = await Swal.fire({
       title: "Are you sure?",
@@ -212,9 +188,12 @@ export default function EditPrescription() {
     if (result.isConfirmed) {
       setDeleting(true);
       try {
-        const response = await fetch(`/api/prescription/delete/${id}`, {
-          method: "DELETE",
-        });
+        const response = await fetch(
+          `/api/user/prescription/${phoneNumber}/${id}`,
+          {
+            method: "DELETE",
+          }
+        );
         if (!response.ok) throw new Error("Failed to delete prescription");
 
         toast.success("Prescription tracking has been stopped.");
@@ -429,38 +408,21 @@ export default function EditPrescription() {
 
               <div className="input-box">
                 <label className="">Reminder Times</label>
-                <div className="time-input-container">
-                  <input
-                    type="time"
-                    value={newTime}
-                    onChange={(e) => setNewTime(e.target.value)}
-                    className="time-input"
-                  />
-                  <button type="button" onClick={handleAddTime} className="">
-                    Add
-                  </button>
-                </div>
-              </div>
-
-              <div className="time-list-container">
-                <label htmlFor="">Selected Times</label>
-                <div className="time-lists">
-                  {reminderTimes.length === 0 ? (
-                    <div className="">No reminder times set</div>
-                  ) : (
-                    reminderTimes.map((time, index) => (
-                      <div key={index} className="time-list">
-                        <span>{time}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTime(time)}
-                          className=""
-                        >
-                          <IoMdClose />
-                        </button>
-                      </div>
-                    ))
-                  )}
+                <div className="time-inputs-container">
+                  {reminderTimes.map((time, index) => (
+                    <div key={index} className="time-input-row">
+                      <Clock size={18} className="clock-icon" />
+                      <input
+                        type="time"
+                        value={formatTimeTo24Hour(time) || ""}
+                        onChange={(e) =>
+                          handleTimeChange(index, e.target.value)
+                        }
+                        className="time-input"
+                      />
+                      <span className="time-display">{time}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

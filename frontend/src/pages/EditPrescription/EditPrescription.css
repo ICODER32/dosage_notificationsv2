@@ -197,6 +197,28 @@
   align-items: center;
   gap: 0.5rem;
 }
+.time-input-with-icon {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  gap: 10px;
+}
+
+.clock-icon {
+  color: #6b7280;
+}
+
+.time-input-editable {
+  padding: 8px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.time-display {
+  color: #4b5563;
+  font-size: 14px;
+}
 
 .edit-prescription-content-container .time-list-container .time-list {
   width: fit-content;

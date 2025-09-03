@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
-import { Pill, X, Users } from "lucide-react";
+import { Pill, X, Users, Clock } from "lucide-react";
 import { IoMdInformationCircleOutline, IoMdClose } from "react-icons/io";
 import { FaRegEdit } from "react-icons/fa";
 import clockIcon from "../../assets/clock-icon.png";
@@ -24,7 +24,7 @@ const Dashboard = () => {
   const [newTime, setNewTime] = useState("");
 
   const [showSetupPopup, setShowSetupPopup] = useState(false);
-  const [inputErrors, setInputErrors] = useState({}); // NEW: track errors for inputs
+  const [inputErrors, setInputErrors] = useState({});
 
   const getData = async () => {
     setLoading(true);
@@ -76,7 +76,7 @@ const Dashboard = () => {
           value === "myself" ? userData?.username || "" : prev[id]?.name || "",
       },
     }));
-    setInputErrors((prev) => ({ ...prev, [id]: false })); // clear error
+    setInputErrors((prev) => ({ ...prev, [id]: false }));
   };
 
   const handleNameChange = (id, value) => {
@@ -87,7 +87,7 @@ const Dashboard = () => {
         name: value,
       },
     }));
-    setInputErrors((prev) => ({ ...prev, [id]: false })); // clear error
+    setInputErrors((prev) => ({ ...prev, [id]: false }));
   };
 
   const saveForWho = async () => {
@@ -147,6 +147,7 @@ const Dashboard = () => {
     return date.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
     });
   };
 
@@ -357,6 +358,120 @@ const Dashboard = () => {
                 }`}
               >
                 {saving ? "Saving..." : "Save Information"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Details Modal */}
+      {modalType === "details" && selectedPrescription && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>Medication Details</h2>
+              <button onClick={closeModal} className="modal-close-btn">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="detail-section">
+                <h3>{selectedPrescription.name}</h3>
+                <div
+                  className={`status-badge ${
+                    selectedPrescription.remindersEnabled ? "active" : "paused"
+                  }`}
+                >
+                  {selectedPrescription.remindersEnabled ? "Active" : "Paused"}
+                </div>
+              </div>
+
+              <div className="detail-grid">
+                <div className="detail-item">
+                  <span className="detail-label">Dosage</span>
+                  <span className="detail-value">
+                    {selectedPrescription.dosage} pill(s) per dose
+                  </span>
+                </div>
+
+                <div className="detail-item">
+                  <span className="detail-label">Times per day</span>
+                  <span className="detail-value">
+                    {selectedPrescription.timesToTake}
+                  </span>
+                </div>
+
+                <div className="detail-item">
+                  <span className="detail-label">Initial Count</span>
+                  <span className="detail-value">
+                    {selectedPrescription.initialCount} pills
+                  </span>
+                </div>
+
+                <div className="detail-item">
+                  <span className="detail-label">Remaining</span>
+                  <span className="detail-value">
+                    {selectedPrescription.tracking.pillCount} pills
+                  </span>
+                </div>
+
+                <div className="detail-item">
+                  <span className="detail-label">Taken</span>
+                  <span className="detail-value">
+                    {selectedPrescription.initialCount -
+                      selectedPrescription.tracking.pillCount}{" "}
+                    pills
+                  </span>
+                </div>
+
+                <div className="detail-item">
+                  <span className="detail-label">Skipped</span>
+                  <span className="detail-value">
+                    {selectedPrescription.tracking.skippedCount} times
+                  </span>
+                </div>
+              </div>
+
+              <div className="detail-section">
+                <h4>Reminder Times</h4>
+                <div className="time-list">
+                  {getReminderTimes(selectedPrescription._id).map(
+                    (time, index) => (
+                      <div key={index} className="time-item">
+                        <Clock size={16} />
+                        <span>{time}</span>
+                      </div>
+                    )
+                  )}
+                </div>
+              </div>
+
+              {selectedPrescription.instructions && (
+                <div className="detail-section">
+                  <h4>Instructions</h4>
+                  <p>{selectedPrescription.instructions}</p>
+                </div>
+              )}
+
+              {selectedPrescription.sideEffects && (
+                <div className="detail-section">
+                  <h4>Side Effects</h4>
+                  <p>{selectedPrescription.sideEffects}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <Link
+                to={`/prescription/edit/${selectedPrescription._id}`}
+                className="edit-button"
+              >
+                <FaRegEdit size={16} />
+                Edit Medication
+              </Link>
+              <button onClick={closeModal} className="close-button">
+                Close
               </button>
             </div>
           </div>

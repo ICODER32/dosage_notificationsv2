@@ -1004,6 +1004,64 @@ router.patch("/update/:id", async (req, res) => {
     });
   }
 });
+// routes/user.js
+router.delete(
+  "/prescription/:phoneNumber/:prescriptionId",
+  async (req, res) => {
+    try {
+      const { phoneNumber, prescriptionId } = req.params;
+
+      // Find user
+      const user = await User.findOne({ phoneNumber });
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      // Find prescription
+      const prescription = user.prescriptions.id(prescriptionId);
+      if (!prescription) {
+        return res.status(404).json({
+          success: false,
+          message: "Prescription not found",
+        });
+      }
+
+      // Delete prescription
+      prescription.deleteOne();
+
+      // Remove schedule entries
+      user.medicationSchedule = user.medicationSchedule.filter(
+        (item) => item.prescriptionId?.toString() !== prescriptionId
+      );
+
+      // Clean up history
+      user.notificationHistory.forEach((history) => {
+        history.medications = history.medications.filter(
+          (med) => med !== prescription.name
+        );
+      });
+
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Prescription tracking stopped successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting prescription:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Server error while deleting prescription",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// delete a medication and it's remainders
 export default router;
 
 export { sendMessage };

@@ -311,4 +311,4 @@ function scheduleNightlyRefresh() {
   });
 }
 
-scheduleNightlyRefresh();
+// scheduleNightlyRefresh();
