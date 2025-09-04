@@ -264,7 +264,7 @@ const CaregiverPage = () => {
   }
 
   return (
-    <div className="caregiver-container custom-container">
+    <div className="caregiver-container custom-container page">
       <div className="page-header">
         <div>
           <h1>Caregiver Management</h1>

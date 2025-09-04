@@ -84,7 +84,9 @@
   margin-top: 1rem;
   padding: 0.5rem;
   border-radius: 0.5rem;
-  border: 1px solid rgba(82, 113, 255, 0.2);
+  border: 1px solid rgba(82, 113, 255, 0.35);
+  background-color: rgba(82, 113, 255, 0.35);
+  background: #5271ff;
   color: #fff;
   text-align: center;
   cursor: pointer;
@@ -93,13 +95,21 @@
   transition: all 0.2s ease-in-out;
 }
 
-.login-content button:hover {
+.login-content button:hover:not(:disabled) {
   background-color: rgba(82, 113, 255, 0.7);
-  color: #fff;
+  background: #3f5bdc;
 }
 
-.login-content button:active {
-  transform: scale(0.95);
+.login-content button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.login-content button:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+.login-content button:disabled {
+  background: inherit;
 }
 
 .login-content .otp-inputs-container {
@@ -116,4 +126,19 @@
   border: 1px solid #e5e7eb;
   font-size: 1.2rem;
   font-weight: 600;
+}
+.login-content .otp-inputs-container input:disabled {
+  background-color: #5271ff;
+  box-shadow: 0 0 0 3px rgba(82, 113, 255, 0.15);
+  outline: none;
+}
+.login-content .phone-input-group select,
+.login-content .phone-input-group .phone-input,
+.login-content .otp-inputs-container input {
+  font-size: 16px; /* >=16px avoids iOS Safari zoom */
+}
+
+/* Touch polish */
+.login-content button {
+  touch-action: manipulation; /* removes double-tap delay */
 }

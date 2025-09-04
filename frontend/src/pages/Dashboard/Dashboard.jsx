@@ -234,7 +234,7 @@ const Dashboard = () => {
       {/* ForWho Modal */}
       {showForWhoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-6 relative">
               <div className="flex justify-between items-start">
@@ -256,7 +256,7 @@ const Dashboard = () => {
             </div>
 
             {/* Modal Body */}
-            <div className="max-h-[60vh] overflow-y-auto p-6 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               {userData.prescriptions?.map(
                 (prescription) =>
                   !prescription.forWho && (

@@ -40,3 +40,205 @@
 .read-the-docs {
   color: #888;
 }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+}
+html {
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  line-height: 1.45;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 1) Fix the #root container (REMOVE the old max-width & text-align) */
+#root {
+  width: 100%;
+  margin: 0 auto;
+  /* mobile padding, grows on larger screens */
+  padding: 12px;
+  text-align: initial; /* was center — remove it */
+}
+
+/* scale padding up at breakpoints */
+@media (min-width: 640px) {
+  #root {
+    padding: 16px;
+  }
+}
+@media (min-width: 1024px) {
+  #root {
+    padding: 24px;
+  }
+}
+
+/* 2) Safe-area helpers for iOS/Android gesture bars */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* 3) A consistent page wrapper (use on every page root) */
+.page {
+  max-width: 720px; /* great reading width for phones */
+  margin: 0 auto;
+  padding-bottom: 96px; /* space for sticky footers */
+}
+
+/* 4) Typography that scales cleanly on tiny phones */
+h1 {
+  font-weight: 800;
+  margin: 0.1em 0;
+  font-size: clamp(22px, 6vw, 34px);
+  line-height: 1.1;
+}
+h2 {
+  font-weight: 700;
+  margin: 0.75em 0 0.4em;
+  font-size: clamp(18px, 5vw, 28px);
+  line-height: 1.15;
+}
+h3 {
+  font-weight: 700;
+  margin: 0.75em 0 0.35em;
+  font-size: clamp(16px, 4.3vw, 22px);
+}
+
+p,
+li,
+label,
+small {
+  font-size: clamp(14px, 3.8vw, 16px);
+}
+
+/* 5) Images & media never overflow */
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+/* 6) Cards feel consistent and compact on small screens */
+.card {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px; /* was 2em — too big on phones */
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 1px 3px rgba(16, 24, 40, 0.1);
+  margin-bottom: 12px;
+}
+@media (min-width: 640px) {
+  .card {
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+}
+
+/* 7) Forms: prevent iOS zoom & weird wrapping */
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  font-size: 16px; /* >=16px avoids iOS zoom-on-focus */
+}
+input,
+select,
+textarea {
+  width: 100%;
+  min-width: 0; /* lets long fields shrink in grids */
+}
+
+/* A resilient phone-input row: [flag+code] [number] */
+.input-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+/* 8) Sticky action bar for primary buttons (never hidden) */
+.action-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid #e5e7eb;
+  padding: 12px;
+}
+@supports (padding: env(safe-area-inset-bottom)) {
+  .action-bar {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+/* 9) Modal layout pattern (header / scroll body / sticky footer) */
+.modal-card {
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #fff;
+}
+.modal-body {
+  overflow-y: auto;
+  padding: 16px;
+}
+.modal-footer {
+  position: sticky;
+  bottom: 0;
+  background: #f8fafc;
+  border-top: 1px solid #e5e7eb;
+  padding: 12px;
+}
+@supports (padding: env(safe-area-inset-bottom)) {
+  .modal-footer {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+}
+
+/* 10) Calendar grids—sensible columns on tiny phones */
+.calendar-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(4, 1fr); /* phones */
+}
+@media (min-width: 640px) {
+  .calendar-grid {
+    grid-template-columns: repeat(7, 1fr);
+    gap: 12px;
+  }
+}
+.calendar-day {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  height: 56px; /* compact on phones */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+/* 11) Utility: truncate long one-line labels safely */
+.truncate {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

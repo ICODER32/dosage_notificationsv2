@@ -647,3 +647,77 @@
     justify-content: center;
   }
 }
+
+@media (max-width: 768px) {
+  .dashboard-top-container .section-container {
+    min-height: 0;
+    max-height: none; /* was 650px */
+    overflow: visible; /* allow content to grow naturally */
+    padding-bottom: 16px;
+  }
+
+  /* Cards/grid get tighter on phones */
+  .dashboard-top-container .my-medications-container {
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(260px, 1fr)
+    ); /* was 300px */
+    gap: 12px;
+  }
+
+  /* Stack details to avoid horizontal squeeze */
+  .dashboard-top-container .prescription-card-details {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  /* Empty state shouldn’t force a tall panel */
+  .dashboard-container .empty-state {
+    height: auto;
+    padding: 20px 0;
+  }
+}
+.dashboard-container .modal-content {
+  max-height: 90vh; /* constrain to viewport */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/* Scroll inside the modal body only */
+.dashboard-container .medication-modal-details {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px; /* avoid scrollbar overlay on text */
+  overscroll-behavior: contain; /* stop background scroll bounce on Android */
+}
+
+/* Keep the Close button visible */
+.dashboard-container .modal-content .modal-footer-close-btn {
+  display: block; /* was none */
+  position: sticky;
+  bottom: 0;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Respect safe areas (gesture bar) */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .dashboard-container .modal-content .modal-footer-close-btn {
+    margin-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* 3) Small polish */
+.dashboard-top-container .prescription-card .details-value img {
+  flex-shrink: 0; /* keep the clock icon from shrinking */
+}
+.dashboard-top-container .prescription-card-title {
+  word-break: break-word; /* very long names won’t overflow */
+}

@@ -1,116 +1,108 @@
-.page-header {
+page-header {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 2.5rem;
 }
-
 .page-header h1 {
-  font-size: 1.875rem; /* 30px */
+  font-size: 1.875rem;
   font-weight: 700;
   text-transform: uppercase;
 }
 
+/* Center column: fluid + capped width */
 .edit-prescription-content-container {
-  width: 50%;
+  width: 100%;
+  max-width: 720px; /* nice reading width */
   margin: 0 auto;
+  padding-bottom: 24px; /* give footer room */
 }
 
-/* Back button container */
+/* Back button */
 .back-button-container {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 20px;
 }
-
-/* Back button styling */
 .back-button {
   display: flex;
   align-items: center;
-  padding: 8px 15px;
-  background-color: #f3f4f6;
+  gap: 0.4rem;
+  padding: 10px 14px;
+  min-height: 44px;
+  background: #f3f4f6;
   color: #4b5563;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: background-color 0.2s ease;
 }
-
 .back-button:hover {
-  background-color: #e5e7eb;
+  background: #e5e7eb;
 }
 
-/* Container adjustments */
+/* Card */
 .edit-prescription-form-container {
   position: relative;
-
-  background: white;
-  border-radius: 10px;
-  padding: 25px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(16, 24, 40, 0.06);
 }
-.edit-prescription-form-container {
-  background-color: #fff;
-  padding: 2rem;
-  border-radius: 0.5rem;
-  margin-bottom: 2rem;
-}
-
 .edit-prescription-form-container form {
   display: flex;
   flex-direction: column;
   gap: 1rem;
 }
 
+/* Grids (auto-fit to avoid squish) */
 .edit-prescription-content-container .input-group {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
-
 .edit-prescription-content-container .input-group.two-column {
   grid-template-columns: repeat(2, 1fr);
 }
 
+/* Controls */
 .edit-prescription-content-container .input-box {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .edit-prescription-content-container label {
-  font-weight: 600;
+  font-weight: 700;
   color: #4b5563;
   font-size: 0.875rem;
   text-transform: uppercase;
 }
 
+/* Inputs (keep values natural case; add focus ring) */
 .edit-prescription-content-container input,
 .edit-prescription-content-container .relative-input,
 .edit-prescription-content-container textarea {
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  /* border: 1px solid #ccc; */
-  background-color: #f9fafb;
-  font-size: 0.875rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
   font-size: 1rem;
-  outline: none;
-  text-transform: uppercase;
-  font-weight: 600;
+}
+.edit-prescription-content-container input:focus,
+.edit-prescription-content-container textarea:focus {
+  outline: 0;
+  border-color: #5271ff;
+  box-shadow: 0 0 0 3px rgba(82, 113, 255, 0.18);
+}
+.edit-prescription-content-container input[disabled],
+.edit-prescription-content-container textarea[disabled] {
+  color: #6b7280;
+  background: #f3f4f6;
+  cursor: not-allowed;
 }
 
-.edit-prescription-content-container input.time-input {
-  padding: 0.5rem;
-  border: 1px solid #ccc;
-  background-color: transparent;
-}
-
-.edit-prescription-content-container input.side-effects-input::placeholder {
-  color: black;
-}
-
-/* For Chrome, Safari, Edge, Opera */
+/* Number input tweaks */
 .edit-prescription-content-container
   input[type="number"]::-webkit-outer-spin-button,
 .edit-prescription-content-container
@@ -118,237 +110,199 @@
   -webkit-appearance: none;
   margin: 0;
 }
-
-/* For Firefox */
 .edit-prescription-content-container input[type="number"] {
   -moz-appearance: textfield;
 }
 
-.edit-prescription-content-container .reminders-button {
-  padding: 0.5rem;
-  border-radius: 0.5rem;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  background-color: #f9fafb;
-  /* border: 1px solid #ccc; */
-  transition: all 0.2s ease-in-out;
-}
-
-.edit-prescription-content-container .reminders-button.active {
-  background-color: #daf9e5;
-  color: #1dc55a;
-}
-
-.edit-prescription-content-container .reminders-button.paused {
-  background-color: #fdfbd6;
-  color: #ceb02c;
-}
-
+/* Time input row */
 .edit-prescription-content-container .time-input-container {
-  width: 100%;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
-
+.edit-prescription-content-container .time-input {
+  background: #fff;
+}
 .edit-prescription-content-container .time-input-container input {
   width: 100%;
 }
-
 .edit-prescription-content-container .time-input-container button {
-  padding: 0.5rem 0.8rem;
-  height: 100%;
-  border-radius: 0.5rem;
-  font-size: 0.8rem;
+  padding: 0.6rem 0.9rem;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
   text-transform: uppercase;
-  font-weight: 600;
+  background: #5271ff;
+  color: #fff;
+  cursor: pointer;
+  transition: transform 0.05s ease, opacity 0.2s ease;
+}
+.edit-prescription-content-container .time-input-container button:active {
+  transform: translateY(1px);
+}
+
+/* Reminder status button */
+.edit-prescription-content-container .reminders-button {
+  padding: 0.6rem 0.8rem;
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   cursor: pointer;
-  background-color: #5271ff;
-  color: #fff;
-  transition: all 0.2s ease-in-out;
-  border: 0;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.edit-prescription-content-container .reminders-button.active {
+  background: #daf9e5;
+  color: #1dc55a;
+  border-color: #b7efcd;
+}
+.edit-prescription-content-container .reminders-button.paused {
+  background: #fdfbd6;
+  color: #ceb02c;
+  border-color: #f7e7a3;
 }
 
+/* Time chips */
 .edit-prescription-content-container .time-list-container {
-  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
-
 .edit-prescription-content-container .time-list-container .time-lists {
-  /* width: 100%;
-  height: 42px;
-  border: 1px solid #ccc;
-  border-radius: 0.5rem;
-  padding: 0.5rem; */
-
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
 }
-.time-input-with-icon {
-  display: flex;
-  align-items: center;
-  margin-bottom: 10px;
-  gap: 10px;
-}
-
-.clock-icon {
-  color: #6b7280;
-}
-
-.time-input-editable {
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-.time-display {
-  color: #4b5563;
-  font-size: 14px;
-}
-
 .edit-prescription-content-container .time-list-container .time-list {
-  width: fit-content;
-  height: 42px;
-  border-radius: 999px;
-  background: rgba(82, 113, 255, 0.2);
-  font-size: 0.8rem;
-  font-weight: 600;
-  padding: 0 0.8rem;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
+  height: 36px;
+  padding: 0 0.8rem;
+  border-radius: 999px;
+  background: rgba(82, 113, 255, 0.18);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.edit-prescription-content-container .time-list button {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
   cursor: pointer;
-  transition: all 0.2s ease-in-out;
 }
 
+/* Stats pills */
 .edit-prescription-content-container .stats {
   display: flex;
   flex-direction: column;
   align-items: center;
-  border-radius: 0.5rem;
-  padding: 0.5rem;
+  justify-content: center;
   text-align: center;
-  font-weight: 600;
+  border-radius: 12px;
+  padding: 0.6rem;
+  font-weight: 700;
   color: #4b5563;
   font-size: 0.875rem;
   text-transform: uppercase;
-  margin-top: 1rem;
+  margin-top: 0.5rem;
 }
-
 .edit-prescription-content-container .stats .value {
   font-size: 1.5rem;
-  font-weight: 600;
+  font-weight: 800;
+  margin-top: 0.15rem;
 }
-
 .edit-prescription-content-container .stats.taken {
-  background-color: #daf9e5;
+  background: #daf9e5;
 }
-
 .edit-prescription-content-container .stats.taken .value {
   color: #1dc55a;
 }
-
 .edit-prescription-content-container .stats.total {
-  background-color: rgba(82, 113, 255, 0.2);
+  background: rgba(82, 113, 255, 0.18);
 }
-
 .edit-prescription-content-container .stats.total .value {
   color: #5271ff;
 }
-
 .edit-prescription-content-container .stats.skipped {
-  background-color: #fee5e5;
+  background: #fee5e5;
 }
-
 .edit-prescription-content-container .stats.skipped .value {
   color: #f43f5e;
 }
 
+/* Buttons group */
 .edit-prescription-content-container .input-group.btns button {
   width: 100%;
-  font-size: 0.875rem;
-  border-radius: 0.5rem;
-  padding: 0.5rem;
+  min-height: 44px;
+  font-size: 0.9rem;
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
   margin-top: 1rem;
-  background-color: transparent;
-  border: 1px solid #ccc;
+  background: transparent;
+  border: 1px solid #e5e7eb;
   text-align: center;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 800;
   text-transform: uppercase;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
 }
-
-.edit-prescription-content-container .input-group.btns button.save-btn {
-  border-color: rgba(82, 113, 255, 0.2);
+.edit-prescription-content-container .input-group.btns .save-btn {
+  border-color: rgba(82, 113, 255, 0.28);
   color: #5271ff;
 }
-
-.edit-prescription-content-container .input-group.btns button.reminder-btn {
-  border-color: #daf9e5;
+.edit-prescription-content-container .input-group.btns .reminder-btn {
+  border-color: #b7efcd;
   color: #1dc55a;
 }
-
-.edit-prescription-content-container .input-group.btns button.delete-btn {
-  border-color: #fee5e5;
+.edit-prescription-content-container .input-group.btns .delete-btn {
+  border-color: #fecaca;
   color: #f43f5e;
 }
 
-/* MEDIA QUERIES FOR RESPONSIVENESS */
-@media screen and (max-width: 768px) {
+/* Keep the CTA buttons above the gesture bar on phones */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .edit-prescription-content-container {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ===== Media ===== */
+@media (max-width: 768px) {
   .page-header h1 {
     font-size: 1.6rem;
   }
 
-  .edit-prescription-content-container {
-    width: 100%;
-  }
-
   .edit-prescription-form-container {
-    background-color: #fff;
-    padding: 1.5rem;
-    border-radius: 0.5rem;
-    margin-bottom: 2rem;
+    padding: 18px;
   }
 
-  .edit-prescription-content-container .input-group {
-    grid-template-columns: repeat(1, 1fr);
-  }
-
-  .edit-prescription-content-container .input-group.two-column {
-    grid-template-columns: repeat(1, 1fr);
-  }
+  /* Force 2-up stats (then wrap) */
   .edit-prescription-content-container .input-group.stats-group {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .edit-prescription-content-container .stats {
-    margin-top: 0rem;
-  }
-
+  /* Reduce vertical gaps inside button group */
   .edit-prescription-content-container .input-group.btns button {
-    margin-top: 0rem;
+    margin-top: 0.5rem;
   }
-
-  .edit-prescription-content-container .input-group.btns button.save-btn {
+  .edit-prescription-content-container .input-group.btns .save-btn {
     margin-top: 1rem;
   }
 }

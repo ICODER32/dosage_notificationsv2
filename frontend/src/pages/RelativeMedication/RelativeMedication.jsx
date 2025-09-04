@@ -127,7 +127,7 @@ export default function RelativeMedication() {
   if (!data) return null;
 
   return (
-    <div className="relative-container custom-container">
+    <div className="relative-container custom-container page">
       <div className="page-header">
         <div>
           <h1 className="">Medications for {relativeName}</h1>

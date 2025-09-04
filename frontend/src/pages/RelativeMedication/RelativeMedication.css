@@ -350,3 +350,83 @@
     margin-top: 0.8rem;
   }
 }
+/* --- RelativeMedication: small-phone fixes & modal resilience --- */
+
+/* Let the header wrap nicely on tiny screens */
+.page-header {
+  flex-wrap: wrap;
+}
+
+/* Card grid: fluid, no forced viewport height */
+.relative-container .relative-contents {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(260px, 1fr)
+  ); /* was 4 fixed cols */
+  gap: 12px;
+  height: auto; /* was 70vh / 100vh */
+  max-height: none;
+  overflow: visible;
+}
+
+/* Details row: stack gracefully */
+.relative-container .relative-info-box-details {
+  display: grid; /* replace flex to avoid squeeze */
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+@media (max-width: 640px) {
+  .relative-container .relative-info-box-details {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Don’t let the clock icon collapse */
+.relative-container .relative-info-box .details-value img {
+  flex-shrink: 0;
+}
+
+/* Long medication names shouldn’t overflow */
+.relative-container .relative-info-box-header h3 {
+  word-break: break-word;
+}
+
+/* Empty state shouldn’t force a tall panel */
+.no-relative-medications {
+  height: auto; /* was 70vh */
+  padding: 24px 12px;
+}
+
+/* Modal: keep content inside the viewport and scroll the body */
+.relative-container .modal-content {
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.relative-container .medication-modal-details {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px; /* avoid scrollbar overlay on text */
+  overscroll-behavior: contain; /* stop background bounce on Android */
+}
+
+/* Respect safe-area (gesture bar) on iOS/Android */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .relative-container .modal-content {
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Doses row & stats: be friendlier on very small phones */
+@media (max-width: 480px) {
+  .relative-container .doses-container {
+    grid-template-columns: 1fr;
+  }
+  .relative-container .stats-container {
+    grid-template-columns: 1fr;
+  }
+}
