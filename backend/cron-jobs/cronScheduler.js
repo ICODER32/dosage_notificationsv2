@@ -144,7 +144,7 @@ export function startReminderCron() {
   });
 }
 
-export async function notifyCaregivers(user, reminders) {
+export async function notifyCaregivers(user, reminders, operation) {
   if (!user.caregivers || user.caregivers.length === 0) return;
 
   const prescriptionsMap = {};
@@ -180,7 +180,7 @@ export async function notifyCaregivers(user, reminders) {
     const skippedFor = Object.keys(prescriptionsMap).join(", ");
 
     const message =
-      `⚠️ ${skippedFor} has missed:\n` +
+      `⚠️ ${skippedFor} has ${operation}:\n` +
       medicationsToNotify.map((m) => `• ${m.name}`).join("\n");
 
     try {
@@ -232,7 +232,11 @@ export function startReminderFollowupCron() {
             const skippedReminders = notification.medications.map((name) => ({
               prescriptionName: name,
             }));
-            await notifyCaregivers(user, skippedReminders);
+            await notifyCaregivers(
+              user,
+              skippedReminders,
+              (operation = "missed")
+            );
           }
         }
 
