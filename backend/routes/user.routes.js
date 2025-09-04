@@ -127,7 +127,7 @@ router.post("/sms/reply", async (req, res) => {
 
   // Handle special commands
   if (lowerMsg === "h" || lowerMsg === "help") {
-    reply = `Commands:\n\nT – set time\nD – confirm taken\nS – skip dose\nSTOP – stop reminders\nPAUSE - Doctor Advice or Breaks\nREMINDER- Continue after STOP\nRESUME Continue after PAUSE\nCANCEL - cancel reminders\nFor Dashboard, visit ${process.env.DASHBOARD_LINK}`;
+    reply = `Commands:\n\nT – set time\nD – confirm taken\nS – skip dose\nSTOP – stop reminders\nPAUSE - Doctor Advice or Breaks\nREMINDER- Continue after STOP\nRESUME Continue after PAUSE\nCANCEL - cancel reminders\nFor Dashboard, visit ${process.env.DASHBOARD_URL}`;
     handled = true;
   }
 
