@@ -1,42 +1,48 @@
-.relative-container {
+* Prevent accidental horizontal scrolling on this page */ .relative-container {
+  overflow-x: hidden;
 }
 
+/* ---------- Header ---------- */
 .page-header {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  flex-wrap: wrap; /* allow wrap on small phones */
 }
-
 .relative-container h1 {
   font-size: 1.875rem; /* 30px */
   font-weight: 700;
   text-transform: uppercase;
 }
 
+/* ---------- Cards grid ---------- */
 .relative-container .relative-contents {
-  background-color: #fff;
+  background: #fff;
   padding: 1.5rem;
   border-radius: 0.5rem;
   position: relative;
-  height: 70vh;
+
+  /* fluid grid (no fixed viewport height) */
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
-  overflow-y: auto;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+
+  height: auto; /* was 70vh */
+  max-height: none;
+  overflow: visible; /* modal shouldn’t be clipped by parent */
 }
 
+/* Individual card */
 .relative-container .relative-info-box {
   border: 1px solid #e5e7eb;
-  border-radius: 0.5rem; /* 8px */
+  border-radius: 0.5rem;
   padding: 1rem;
   height: fit-content;
 }
-
 .relative-container .relative-info-box.green {
   border-left: 3px solid #1dc55a;
 }
-
 .relative-container .relative-info-box.yellow {
   border-left: 3px solid #f1a727;
 }
@@ -46,11 +52,11 @@
   justify-content: space-between;
   align-items: center;
 }
-
 .relative-container .relative-info-box-header h3 {
-  font-size: 1.25rem; /* 20px */
+  font-size: 1.25rem;
   font-weight: 700;
   text-transform: uppercase;
+  word-break: break-word; /* long names won’t overflow */
 }
 
 .relative-container .relative-info-box-subheader {
@@ -59,9 +65,8 @@
   gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
-
 .relative-container .relative-info-box-subheader .status {
-  font-size: 0.65rem; /* 10px */
+  font-size: 0.65rem;
   text-transform: uppercase;
   width: fit-content;
   border-radius: 999px;
@@ -69,310 +74,22 @@
   font-weight: 600;
   margin-top: 0.3rem;
 }
-
 .relative-container .relative-info-box-subheader .status.who {
-  background-color: rgb(82, 113, 255, 0.2);
+  background: rgba(82, 113, 255, 0.2);
   color: #5271ff;
 }
-
 .relative-container .relative-info-box-subheader .status.green {
-  background-color: #daf9e5;
+  background: #daf9e5;
   color: #63ae80;
 }
-
 .relative-container .relative-info-box-subheader .status.yellow {
-  background-color: #fdfbd6;
+  background: #fdfbd6;
   color: #c29f77;
 }
 
+/* Details row inside card */
 .relative-container .relative-info-box-details {
-  display: flex;
-  gap: 1.5rem;
-  margin-top: 1rem;
-}
-
-.relative-container .relative-info-box .details-label {
-  text-transform: uppercase;
-  font-weight: 600;
-  margin-bottom: 0.2rem;
-  font-size: 0.75rem;
-  color: #4b5563;
-}
-
-.relative-container .relative-info-box .details-value {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-}
-
-.relative-container .relative-info-box .details-value p {
-  font-weight: 600;
-}
-
-.relative-container .relative-info-box .details-value img {
-  width: 20px;
-}
-
-.relative-container .relative-info-box-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 1.5rem;
-}
-
-.relative-container .relative-info-box-footer .card-link {
-  display: flex;
-  align-items: center;
-  gap: 0.2rem;
-  text-transform: uppercase;
-  font-weight: 600;
-  font-size: 0.75rem; /* 10px */
-  /* color: #4b5563; */
-
-  cursor: pointer;
-}
-
-.relative-container .relative-info-box-footer .card-link .icon {
-  width: 20px;
-  height: 20px;
-}
-
-.relative-container .relative-info-box-footer .card-link .icon.edit {
-  color: rgb(82, 113, 255);
-}
-
-/* Modal styling */
-.relative-container .modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 9999;
-  background-color: rgba(0, 0, 0, 0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 20px;
-}
-
-.relative-container .modal-content {
-  background-color: #fff;
-  padding: 20px;
-  border-radius: 5px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  width: 100%;
-  max-width: 500px;
-  padding-bottom: 40px;
-}
-
-.relative-container .modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.2rem;
-}
-
-.relative-container .modal-title {
-  font-size: 1.5rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.relative-container .modal-close-btn {
-  cursor: pointer;
-}
-
-.relative-container .modal-close-btn .icon {
-  width: 30px;
-  height: 30px;
-}
-
-.relative-container .medication-modal-details {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.relative-container .modal-content .label {
-  text-transform: uppercase;
-  font-weight: 600;
-  font-size: 0.75rem; /* 14px */
-  margin-bottom: 0.5rem;
-  color: #4b5563;
-}
-
-.relative-container .modal-content .value {
-  text-transform: uppercase;
-  font-weight: 600;
-}
-
-.relative-container .medication-modal-details-header h3 {
-  text-transform: uppercase;
-  font-weight: 600;
-  font-size: 1rem; /* 16px */
-  background-color: rgb(82, 113, 255, 0.2);
-  padding: 0.7rem;
-  border-radius: 0.5rem;
-  color: #5271ff;
-  margin-bottom: 0.5rem;
-}
-
-.relative-container .medication-modal-details-header p {
-  text-transform: uppercase;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.relative-container .doses-container {
   display: grid;
-  align-items: center;
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.relative-container .reminder-times {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.relative-container .reminder-time {
-  width: fit-content;
-  background-color: rgb(82, 113, 255, 0.2);
-  padding: 0.5rem 0.7rem;
-  border-radius: 999px;
-  text-transform: uppercase;
-  font-weight: 600;
-  font-size: 0.8rem;
-}
-
-.relative-container .stats-container {
-  display: grid;
-  align-items: center;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1rem;
-}
-
-.relative-container .stats-container .stat-box {
-  width: 100%;
-  /* border: 1px solid #e5e7eb; */
-  border-radius: 0.5rem; /* 8px */
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.relative-container .stats-container .stat-value {
-  font-size: 1.5rem;
-  font-weight: 600;
-  margin-top: -0.5rem;
-}
-
-.relative-container .stats-container .stat-box.stat-green {
-  background-color: #daf9e5;
-}
-
-.relative-container .stats-container .stat-box.stat-green .stat-value {
-  color: #1dc55a;
-}
-
-.relative-container .stats-container .stat-box.stat-yellow {
-  background-color: #fdfbd6;
-}
-
-.relative-container .stats-container .stat-box.stat-yellow .stat-value {
-  color: #ceb02c;
-}
-
-.relative-container .stats-container .stat-box.stat-red {
-  background-color: #fee5e5;
-}
-
-.relative-container .stats-container .stat-box.stat-red .stat-value {
-  color: #f43f5e;
-}
-
-.relative-container .modal-content .info-box {
-  width: 100%;
-  border-radius: 0.5rem; /* 8px */
-  padding: 0.5rem;
-  margin-top: 1rem;
-  background-color: #f9fafb;
-  border: 1px solid #e5e7eb;
-}
-
-.no-relative-medications {
-  height: 70vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background-color: #fff;
-  border-radius: 0.5rem;
-  padding: 1.5rem;
-  text-align: center;
-  gap: 1rem;
-}
-
-.no-relative-medications h3 {
-  font-size: 1.5rem;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-/* MEDIA QUERIES FOR RESPONSIVENESS */
-@media screen and (max-width: 768px) {
-  .relative-container h1 {
-    font-size: 1.6rem;
-  }
-
-  .relative-container .relative-contents {
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  /* Modal styling */
-
-  .relative-container .modal-title {
-    font-size: 1.3rem;
-  }
-
-  .relative-container .stats-container {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .relative-container .modal-content .info-box {
-    margin-top: 0.8rem;
-  }
-}
-/* --- RelativeMedication: small-phone fixes & modal resilience --- */
-
-/* Let the header wrap nicely on tiny screens */
-.page-header {
-  flex-wrap: wrap;
-}
-
-/* Card grid: fluid, no forced viewport height */
-.relative-container .relative-contents {
-  display: grid;
-  grid-template-columns: repeat(
-    auto-fill,
-    minmax(260px, 1fr)
-  ); /* was 4 fixed cols */
-  gap: 12px;
-  height: auto; /* was 70vh / 100vh */
-  max-height: none;
-  overflow: visible;
-}
-
-/* Details row: stack gracefully */
-.relative-container .relative-info-box-details {
-  display: grid; /* replace flex to avoid squeeze */
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-top: 12px;
@@ -383,45 +100,229 @@
   }
 }
 
-/* Don’t let the clock icon collapse */
+.relative-container .relative-info-box .details-label {
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+  font-size: 0.75rem;
+  color: #4b5563;
+}
+.relative-container .relative-info-box .details-value {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
 .relative-container .relative-info-box .details-value img {
+  width: 20px;
   flex-shrink: 0;
 }
-
-/* Long medication names shouldn’t overflow */
-.relative-container .relative-info-box-header h3 {
-  word-break: break-word;
+.relative-container .relative-info-box .details-value p {
+  font-weight: 600;
 }
 
-/* Empty state shouldn’t force a tall panel */
+.relative-container .relative-info-box-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.5rem;
+}
+.relative-container .relative-info-box-footer .card-link {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.relative-container .relative-info-box-footer .card-link .icon {
+  width: 20px;
+  height: 20px;
+}
+.relative-container .relative-info-box-footer .card-link .icon.edit {
+  color: #5271ff;
+}
+
+/* ---------- Empty state ---------- */
 .no-relative-medications {
   height: auto; /* was 70vh */
-  padding: 24px 12px;
-}
-
-/* Modal: keep content inside the viewport and scroll the body */
-.relative-container .modal-content {
-  max-height: 90vh;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
-  border-radius: 12px;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  text-align: center;
+  gap: 1rem;
 }
-.relative-container .medication-modal-details {
-  flex: 1;
-  overflow-y: auto;
-  padding-right: 4px; /* avoid scrollbar overlay on text */
-  overscroll-behavior: contain; /* stop background bounce on Android */
+.no-relative-medications h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
-/* Respect safe-area (gesture bar) on iOS/Android */
+/* ---------- Modal (mobile-robust) ---------- */
+.relative-container .modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px; /* outer gutter so card never touches edges */
+}
+
+.relative-container .modal-content {
+  width: min(640px, 100%);
+  /* use dynamic viewport units + safe area so bottom isn't hidden by gesture bar */
+  max-height: min(92dvh, calc(100dvh - 32px));
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden; /* header fixed, body scrolls */
+}
+
+.relative-container .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+  border-bottom: 1px solid #eee;
+}
+.relative-container .modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-transform: none;
+  margin: 0;
+}
+.relative-container .modal-close-btn {
+  cursor: pointer;
+}
+.relative-container .modal-close-btn .icon {
+  width: 30px;
+  height: 30px;
+}
+
+.relative-container .medication-modal-details {
+  flex: 1;
+  overflow-y: auto; /* the part that scrolls */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain; /* stop background bounce */
+  padding: 20px;
+  min-width: 0;
+}
+
+/* labels/values inside modal */
+.relative-container .modal-content .label {
+  text-transform: uppercase;
+  font-weight: 600;
+  font-size: 0.75rem;
+  margin-bottom: 0.5rem;
+  color: #4b5563;
+}
+.relative-container .modal-content .value {
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+/* reminder times */
+.relative-container .reminder-times {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.relative-container .reminder-time {
+  width: fit-content;
+  background: rgba(82, 113, 255, 0.2);
+  padding: 0.5rem 0.7rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+/* stats inside modal */
+.relative-container .stats-container {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+.relative-container .stats-container .stat-box {
+  width: 100%;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  height: 100%;
+}
+.relative-container .stats-container .stat-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-top: -0.5rem;
+}
+.relative-container .stats-container .stat-box.stat-green {
+  background: #daf9e5;
+}
+.relative-container .stats-container .stat-box.stat-green .stat-value {
+  color: #1dc55a;
+}
+.relative-container .stats-container .stat-box.stat-yellow {
+  background: #fdfbd6;
+}
+.relative-container .stats-container .stat-box.stat-yellow .stat-value {
+  color: #ceb02c;
+}
+.relative-container .stats-container .stat-box.stat-red {
+  background: #fee5e5;
+}
+.relative-container .stats-container .stat-box.stat-red .stat-value {
+  color: #f43f5e;
+}
+
+.relative-container .modal-content .info-box {
+  width: 100%;
+  border-radius: 0.5rem;
+  padding: 0.5rem;
+  margin-top: 1rem;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+/* Respect safe-area on iOS/Android */
 @supports (padding: env(safe-area-inset-bottom)) {
   .relative-container .modal-content {
-    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 
-/* Doses row & stats: be friendlier on very small phones */
+/* ---------- Media ---------- */
+@media screen and (max-width: 768px) {
+  .relative-container h1 {
+    font-size: 1.6rem;
+  }
+
+  /* keep 2-up stats on medium phones */
+  .relative-container .stats-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .relative-container .modal-title {
+    font-size: 1.3rem;
+  }
+  .relative-container .modal-content .info-box {
+    margin-top: 0.8rem;
+  }
+}
+
 @media (max-width: 480px) {
   .relative-container .doses-container {
     grid-template-columns: 1fr;
@@ -429,4 +330,10 @@
   .relative-container .stats-container {
     grid-template-columns: 1fr;
   }
+}
+
+/* ---------- Global helper (toggle from JS) ---------- */
+/* When the modal is open, prevent the page behind from scrolling */
+body.modal-open {
+  overflow: hidden;
 }

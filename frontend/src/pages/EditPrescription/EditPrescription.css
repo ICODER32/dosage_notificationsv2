@@ -1,4 +1,16 @@
-page-header {
+/* ===== Edit Prescription (responsive, accessible) ===== */
+
+/* Guard against sideways scrolling anywhere on this page */
+html,
+body,
+#root,
+.editing-prescription-container {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Page header */
+.page-header {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
@@ -11,11 +23,20 @@ page-header {
 }
 
 /* Center column: fluid + capped width */
+.editing-prescription-container {
+  /* background set to gray by layout; we keep it on desktop */
+}
 .edit-prescription-content-container {
   width: 100%;
-  max-width: 720px; /* nice reading width */
+  max-width: 720px; /* comfortable reading width */
   margin: 0 auto;
-  padding-bottom: 24px; /* give footer room */
+  padding-bottom: 24px; /* give footer/CTA some room */
+}
+/* Keep CTA buttons above iOS gesture bar */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .edit-prescription-content-container {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
 }
 
 /* Back button */
@@ -78,8 +99,6 @@ page-header {
   font-size: 0.875rem;
   text-transform: uppercase;
 }
-
-/* Inputs (keep values natural case; add focus ring) */
 .edit-prescription-content-container input,
 .edit-prescription-content-container .relative-input,
 .edit-prescription-content-container textarea {
@@ -114,6 +133,34 @@ page-header {
   -moz-appearance: textfield;
 }
 
+/* Reminder status button */
+.edit-prescription-content-container .reminders-button {
+  padding: 0.6rem 0.8rem;
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.edit-prescription-content-container .reminders-button.active {
+  background: #daf9e5;
+  color: #1dc55a;
+  border-color: #b7efcd;
+}
+.edit-prescription-content-container .reminders-button.paused {
+  background: #fdfbd6;
+  color: #ceb02c;
+  border-color: #f7e7a3;
+}
+
 /* Time input row */
 .edit-prescription-content-container .time-input-container {
   display: flex;
@@ -141,34 +188,6 @@ page-header {
 }
 .edit-prescription-content-container .time-input-container button:active {
   transform: translateY(1px);
-}
-
-/* Reminder status button */
-.edit-prescription-content-container .reminders-button {
-  padding: 0.6rem 0.8rem;
-  min-height: 44px;
-  border-radius: 10px;
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  transition: background-color 0.2s ease, border-color 0.2s ease;
-}
-.edit-prescription-content-container .reminders-button.active {
-  background: #daf9e5;
-  color: #1dc55a;
-  border-color: #b7efcd;
-}
-.edit-prescription-content-container .reminders-button.paused {
-  background: #fdfbd6;
-  color: #ceb02c;
-  border-color: #f7e7a3;
 }
 
 /* Time chips */
@@ -205,8 +224,16 @@ page-header {
   cursor: pointer;
 }
 
-/* Stats pills */
+/* Stat tiles — equal height & aligned */
+.edit-prescription-content-container .input-group.stats-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  align-items: stretch; /* make children same height */
+}
 .edit-prescription-content-container .stats {
+  height: 100%;
+  min-height: 120px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -218,7 +245,7 @@ page-header {
   color: #4b5563;
   font-size: 0.875rem;
   text-transform: uppercase;
-  margin-top: 0.5rem;
+  margin-top: 0rem;
 }
 .edit-prescription-content-container .stats .value {
   font-size: 1.5rem;
@@ -276,29 +303,40 @@ page-header {
   color: #f43f5e;
 }
 
-/* Keep the CTA buttons above the gesture bar on phones */
-@supports (padding: env(safe-area-inset-bottom)) {
-  .edit-prescription-content-container {
-    padding-bottom: calc(24px + env(safe-area-inset-bottom));
-  }
-}
-
-/* ===== Media ===== */
+/* ===== Mobile: remove "popup" look & stack cleanly ===== */
 @media (max-width: 768px) {
   .page-header h1 {
     font-size: 1.6rem;
   }
 
+  /* Make the page feel full-screen on phones */
+  .editing-prescription-container {
+    background: #fff;
+  }
   .edit-prescription-form-container {
-    padding: 18px;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 16px 16px 24px;
+    margin: 0;
+  }
+  .page-header {
+    padding: 0 16px;
   }
 
-  /* Force 2-up stats (then wrap) */
+  /* Stack fields neatly */
+  .edit-prescription-content-container .input-group {
+    grid-template-columns: 1fr;
+  }
+  .edit-prescription-content-container .input-group.two-column {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stats: 2-up grid on phones, still equal-height */
   .edit-prescription-content-container .input-group.stats-group {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  /* Reduce vertical gaps inside button group */
+  /* Button spacing */
   .edit-prescription-content-container .input-group.btns button {
     margin-top: 0.5rem;
   }

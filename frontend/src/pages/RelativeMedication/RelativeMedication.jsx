@@ -51,6 +51,14 @@ export default function RelativeMedication() {
   useEffect(() => {
     if (phoneNumber) getData();
   }, [phoneNumber, relativeName]);
+  useEffect(() => {
+    if (showDetailsModal) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+    return () => document.body.classList.remove("modal-open");
+  }, [showDetailsModal]);
 
   const formatTime = (isoString) => {
     if (!isoString) return "";
