@@ -263,7 +263,7 @@ router.post("/sms/reply", async (req, res) => {
       handled = true;
 
       if (skippedReminders.length > 0) {
-        await notifyCaregivers(user, skippedReminders, (operation = "skipped"));
+        await notifyCaregivers(user, skippedReminders, "skipped");
       }
     }
   }

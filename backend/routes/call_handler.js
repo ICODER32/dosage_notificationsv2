@@ -122,7 +122,11 @@ router.post("/handle", async (req, res) => {
 
       // 🔔 Notify caregivers
       if (prescription) {
-        await notifyCaregivers(user, [{ prescriptionName: prescription.name }]);
+        await notifyCaregivers(
+          user,
+          [{ prescriptionName: prescription.name }],
+          "skipped"
+        );
       }
     }
 

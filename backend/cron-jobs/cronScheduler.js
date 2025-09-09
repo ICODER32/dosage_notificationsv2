@@ -232,11 +232,7 @@ export function startReminderFollowupCron() {
             const skippedReminders = notification.medications.map((name) => ({
               prescriptionName: name,
             }));
-            await notifyCaregivers(
-              user,
-              skippedReminders,
-              (operation = "missed")
-            );
+            await notifyCaregivers(user, skippedReminders, "missed");
           }
         }
 
