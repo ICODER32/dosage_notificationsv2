@@ -138,20 +138,32 @@ export default function EditPrescription() {
   };
 
   const handleTimeChange = (index, newTime) => {
+    // Convert to 24-hour format first
+    const time24Hour = newTime;
+    // Then convert to 12-hour format for display
+    const time12Hour = formatTimeTo12Hour(time24Hour);
+
+    // Create a new array with the updated time
     const updatedTimes = [...reminderTimes];
-    updatedTimes[index] = formatTimeTo12Hour(newTime);
+    updatedTimes[index] = time12Hour;
     setReminderTimes(updatedTimes);
-    handleSubmit(null, updatedTimes); // pass latest times
   };
 
-  const handleSubmit = async (e, updatedTimes = reminderTimes) => {
-    if (e) {
-      e.preventDefault();
-    }
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     setSaving(true);
 
     try {
-      const times24 = updatedTimes.map((time) => formatTimeTo24Hour(time));
+      // Always keep the old prescription times
+      const existingTimes = prescription.reminderTimes || [];
+
+      // Convert reminderTimes to 24h
+      const updatedTimes = reminderTimes.map((time) =>
+        formatTimeTo24Hour(time)
+      );
+
+      // Merge old + updated, then deduplicate
+      const finalTimes = [...new Set([...existingTimes, ...updatedTimes])];
 
       const response = await fetch(`/api/user/update/${id}`, {
         method: "PATCH",
@@ -159,7 +171,7 @@ export default function EditPrescription() {
         body: JSON.stringify({
           ...formData,
           phoneNumber,
-          reminderTimes: times24,
+          reminderTimes: finalTimes,
         }),
       });
 
@@ -304,6 +316,8 @@ export default function EditPrescription() {
             Adjust the details for <strong>{prescription.name}</strong> below.
           </p>
         </div>
+
+        {/* Top Save Button */}
       </div>
 
       <div className="edit-prescription-content-container">
@@ -407,7 +421,45 @@ export default function EditPrescription() {
               </div>
 
               <div className="input-box">
-                <label className="">Reminder Times</label>
+                <div className="times-header">
+                  <label className="">Reminder Times</label>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="times-save-btn"
+                  >
+                    {saving ? (
+                      <>
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Times
+                      </>
+                    )}
+                  </button>
+                </div>
                 <div className="time-inputs-container">
                   {reminderTimes.map((time, index) => (
                     <div key={index} className="time-input-row">
