@@ -75,7 +75,7 @@ export function startReminderCron() {
 
             const scheduledTime = moment.utc(schedule.scheduledTime);
             const timeDiff = Math.abs(scheduledTime.diff(now, "minutes"));
-            return timeDiff <= 2; // Within 2-minute window
+            return timeDiff <= 1; // Within 2-minute window
           });
 
           if (dueReminders.length === 0) continue;
@@ -248,7 +248,7 @@ async function sendFollowupReminder(user, notification, resendCount) {
   try {
     const medList = notification.medications.join(", ");
     const message = `
-    Reminder (${resendCount}/2)
+   
     It's time to take your medications: ${medList}.\n\nPlease reply:\nD – if you have taken them\nS – if you need to skip this dose\n\nThank you for using CareTrackRX.`;
 
     if (user.notificationType === "call" && resendCount === 0) {

@@ -123,7 +123,6 @@ import { RxHamburgerMenu } from "react-icons/rx";
 import logo from "../assets/logo.png";
 // import avatar from "../assets/avatar.jpg";
 import "./Navbar.css"; // Import the new CSS file
-import AddToHomeButton from "./AddToHome";
 
 const Navbar = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);
@@ -205,7 +204,7 @@ const Navbar = () => {
               <IoSearch />
             </div> */}
 
-            {isAuthenticated ? (
+            {isAuthenticated && (
               <>
                 {/* <div className="icon-box">
                   <MdNotificationsNone />
@@ -221,8 +220,6 @@ const Navbar = () => {
                   <RxHamburgerMenu />
                 </div>
               </>
-            ) : (
-              <AddToHomeButton />
             )}
 
             {/* <div className="avatar">

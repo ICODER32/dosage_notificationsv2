@@ -55,7 +55,8 @@ router.post("/", async (req, res) => {
     // Add new caregiver
     user.caregivers.push(caregiver);
     await user.save();
-    const message = `You have been added as a caregiver for ${user.phoneNumber}`;
+    const message = `You have been added as a caregiver for ${user.phoneNumber}. To maintain adherence, you will receive alerts if the patient misses or skips any scheduled doses.
+Missed or Skipped Dose Alerts`;
     await sendMessage(caregiver.phoneNumber, message);
 
     res.status(201).json({
