@@ -148,24 +148,43 @@ router.post("/sms/reply", async (req, res) => {
       if (missedNotifications.length > 0) {
         const lastMissed = missedNotifications[0];
         const missedMeds = lastMissed.medications.join(", ");
-        const missedTime = moment(lastMissed.scheduledTime)
-          .tz(user.timezone)
-          .format("h:mm A");
+
+        // Lookup scheduled time from scheduleIds
+        const firstScheduleId = lastMissed.scheduleIds?.[0];
+        const scheduleItem = firstScheduleId
+          ? user.medicationSchedule.id(firstScheduleId)
+          : null;
+
+        let missedTime = "unknown time";
+        if (scheduleItem && scheduleItem.scheduledTime) {
+          missedTime = moment(scheduleItem.scheduledTime)
+            .tz(user.timezone)
+            .format("h:mm A");
+        }
 
         reply = `You don't have any pending medications to confirm.\nYour ${missedMeds} dose at ${missedTime} was already marked as missed.`;
       } else if (takenNotifications.length > 0) {
         const lastTaken = takenNotifications[0];
         const takenMeds = lastTaken.medications.join(", ");
-        const takenTime = moment(lastTaken.scheduledTime)
-          .tz(user.timezone)
-          .format("h:mm A");
+
+        const firstScheduleId = lastTaken.scheduleIds?.[0];
+        const scheduleItem = firstScheduleId
+          ? user.medicationSchedule.id(firstScheduleId)
+          : null;
+
+        let takenTime = "unknown time";
+        if (scheduleItem && scheduleItem.scheduledTime) {
+          takenTime = moment(scheduleItem.scheduledTime)
+            .tz(user.timezone)
+            .format("h:mm A");
+        }
 
         reply = `You don't have any pending medications to confirm.\nThe last medication you took was ${takenMeds} at ${takenTime}.`;
       } else {
         reply = "You don't have any pending medications to confirm.";
       }
-      console.log(reply);
 
+      console.log(reply);
       handled = true;
     } else {
       const mostRecentNotification = pendingNotifications[0];
