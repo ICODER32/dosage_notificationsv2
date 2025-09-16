@@ -15,7 +15,7 @@ const client = twilio(
   process.env.TWILIO_AUTH_TOKEN
 );
 
-// Create router for call handling endpoints
+// Router for call handling
 const callRouter = Router();
 
 // Helper function to make interactive phone calls
@@ -26,10 +26,10 @@ async function makeInteractiveCall(phoneNumber, notificationId) {
       to: `+${phoneNumber}`,
       from: process.env.TWILIO_PHONE_NUMBER,
     });
-    console.log(`Interactive call initiated to ${phoneNumber}: ${call.sid}`);
+    console.log(`📞 Call initiated to ${phoneNumber}: ${call.sid}`);
     return call;
   } catch (error) {
-    console.error(`Error making call to ${phoneNumber}:`, error);
+    console.error(`❌ Error making call to ${phoneNumber}:`, error);
     throw error;
   }
 }
@@ -42,20 +42,23 @@ async function sendSMS(phoneNumber, message) {
       from: process.env.TWILIO_PHONE_NUMBER,
       to: `+${phoneNumber}`,
     });
-    console.log(message);
-    console.log(`SMS sent to ${phoneNumber}: ${sms.sid}`);
+    console.log(`💬 SMS sent to ${phoneNumber}: ${sms.sid}`);
     return sms;
   } catch (error) {
-    console.error(`Error sending SMS to ${phoneNumber}:`, error);
+    console.error(`❌ Error sending SMS to ${phoneNumber}:`, error);
     throw error;
   }
 }
 
+/**
+ * Cron Job — Send reminders
+ * Runs every minute and sends per-medication calls/SMS
+ */
 export function startReminderCron() {
   cron.schedule("*/1 * * * *", async () => {
     const now = moment.utc();
     console.log(
-      `⏰ Starting reminder check at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
+      `⏰ Reminder check at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
     );
 
     try {
@@ -68,82 +71,77 @@ export function startReminderCron() {
         try {
           const userTimezone = user.timezone || "UTC";
 
-          // Find due reminders that haven't been processed
+          // Find due reminders
           const dueReminders = user.medicationSchedule.filter((schedule) => {
             if (schedule.status !== "pending") return false;
             if (schedule.remainderSent) return false;
 
             const scheduledTime = moment.utc(schedule.scheduledTime);
             const timeDiff = Math.abs(scheduledTime.diff(now, "minutes"));
-            return timeDiff <= 1; // Within 2-minute window
+            return timeDiff <= 1;
           });
 
           if (dueReminders.length === 0) continue;
 
-          // Create notification with schedule IDs
-          const scheduleIds = dueReminders.map((r) => r._id);
-          const uniqueMeds = [
-            ...new Set(dueReminders.map((r) => r.prescriptionName)),
-          ];
+          // === process each reminder separately ===
+          for (const reminder of dueReminders) {
+            const medName = reminder.prescriptionName;
+            const scheduleId = reminder._id;
 
-          // Format message
-          let message = `CareTrackRX Reminder\n\n💊 It's time to take:\n`;
-          dueReminders.forEach((reminder) => {
             const timeStr = moment
               .utc(reminder.scheduledTime)
               .tz(userTimezone)
               .format("h:mm A");
-            message += `\n• ${reminder.prescriptionName} at ${timeStr}`;
-          });
-          message += `\n\nReply:\nD - Taken\nS - Skip`;
 
-          // Create notification record first to get its ID
-          const notification = {
-            sentAt: now.toDate(),
-            message: `Reminder for ${uniqueMeds.join(", ")}`,
-            status: "pending",
-            medications: uniqueMeds,
-            scheduleIds,
-            resends: 0,
-            notificationType: user.notificationType || "sms",
-          };
+            const message = `CareTrackRX Reminder\n\n💊 It's time to take:\n• ${medName} at ${timeStr}\n\nReply:\nD - Taken\nS - Skip`;
 
-          user.notificationHistory.push(notification);
-          await user.save();
+            // Create notification for this medication
+            const notification = {
+              sentAt: now.toDate(),
+              message: `Reminder for ${medName}`,
+              status: "pending",
+              medications: [medName],
+              scheduleIds: [scheduleId],
+              resends: 0,
+              notificationType: user.notificationType || "sms",
+            };
 
-          // Get the notification ID that was just created
-          const notificationId = user.notificationHistory.slice(-1)[0]._id;
+            user.notificationHistory.push(notification);
+            await user.save();
 
-          // Send notification based on user preference
-          if (user.notificationType === "call") {
-            try {
-              await makeInteractiveCall(user.phoneNumber, notificationId);
-            } catch (error) {
-              // Fallback to SMS if call fails
-              console.log(`Falling back to SMS for ${user.phoneNumber}`);
+            const notificationId = user.notificationHistory.slice(-1)[0]._id;
+
+            // Send notification based on user preference
+            if (user.notificationType === "call") {
+              try {
+                await makeInteractiveCall(user.phoneNumber, notificationId);
+              } catch (error) {
+                console.log(
+                  `⚠️ Call failed, fallback SMS for ${user.phoneNumber}`
+                );
+                await sendSMS(user.phoneNumber, message);
+              }
+            } else {
               await sendSMS(user.phoneNumber, message);
             }
-          } else {
-            // Default to SMS
-            await sendSMS(user.phoneNumber, message);
-          }
 
-          // Update flags
-          dueReminders.forEach((reminder) => {
+            // Mark reminder as sent
             reminder.remainderSent = true;
-          });
-
-          await user.save();
+            await user.save();
+          }
         } catch (error) {
-          console.error(`Error processing ${user.phoneNumber}:`, error);
+          console.error(`🚨 Error processing ${user.phoneNumber}:`, error);
         }
       }
     } catch (error) {
-      console.error("Critical error in reminder cycle:", error);
+      console.error("🚨 Critical error in reminder cycle:", error);
     }
   });
 }
 
+/**
+ * Notify caregivers when meds are skipped/missed
+ */
 export async function notifyCaregivers(user, reminders, operation) {
   if (!user.caregivers || user.caregivers.length === 0) return;
 
@@ -176,7 +174,6 @@ export async function notifyCaregivers(user, reminders, operation) {
 
     if (medicationsToNotify.length === 0) continue;
 
-    // Pick the username(s) linked to the skipped meds
     const skippedFor = Object.keys(prescriptionsMap).join(", ");
 
     const message =
@@ -188,20 +185,21 @@ export async function notifyCaregivers(user, reminders, operation) {
       console.log(`   👩‍⚕️ Caregiver notified: ${caregiver.phoneNumber}`);
     } catch (error) {
       console.error(
-        `   ❌ Failed to notify caregiver ${caregiver.phoneNumber}:`,
+        `   ❌ Failed caregiver SMS ${caregiver.phoneNumber}:`,
         error
       );
     }
   }
 }
 
+/**
+ * Cron Job — Follow-up reminders
+ */
 export function startReminderFollowupCron() {
   cron.schedule("*/1 * * * *", async () => {
     const now = moment.utc();
     console.log(
-      `🔁 Checking follow-up reminders at ${now.format(
-        "YYYY-MM-DD HH:mm:ss"
-      )} UTC`
+      `🔁 Follow-up check at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
     );
 
     try {
@@ -226,9 +224,7 @@ export function startReminderFollowupCron() {
             await sendFollowupReminder(user, notification, 2);
           } else if (notification.resends === 2 && minutesPassed >= 40) {
             notification.status = "skipped";
-            console.log(
-              `🚫 Marked reminder as skipped for ${user.phoneNumber}`
-            );
+            console.log(`🚫 Reminder skipped for ${user.phoneNumber}`);
             const skippedReminders = notification.medications.map((name) => ({
               prescriptionName: name,
             }));
@@ -247,16 +243,12 @@ export function startReminderFollowupCron() {
 async function sendFollowupReminder(user, notification, resendCount) {
   try {
     const medList = notification.medications.join(", ");
-    const message = `
-   
-    It's time to take your medications: ${medList}.\n\nPlease reply:\nD – if you have taken them\nS – if you need to skip this dose\n\nThank you for using CareTrackRX.`;
+    const message = `CareTrackRX Reminder\n\n⏰ It's time to take: ${medList}\n\nReply:\nD – Taken\nS – Skip`;
 
     if (user.notificationType === "call" && resendCount === 0) {
-      // Only make call for first follow-up, then use SMS
       try {
         await makeInteractiveCall(user.phoneNumber, notification._id);
       } catch (error) {
-        // Fallback to SMS
         await sendSMS(user.phoneNumber, message);
       }
     } else {
@@ -264,18 +256,19 @@ async function sendFollowupReminder(user, notification, resendCount) {
     }
 
     console.log(`📤 Follow-up sent to ${user.phoneNumber}`);
-
     notification.resends = resendCount;
   } catch (error) {
-    console.error(`❌ Failed to resend to ${user.phoneNumber}:`, error);
+    console.error(`❌ Follow-up failed for ${user.phoneNumber}:`, error);
     notification.status = "failed";
     notification.error = error.message;
   }
 }
 
+/**
+ * (Optional) Nightly refresh of medication schedules
+ */
 function scheduleNightlyRefresh() {
   cron.schedule("0 3 * * *", async () => {
-    // 3 AM daily
     const activeUsers = await User.find({ status: "active" });
 
     for (const user of activeUsers) {
@@ -294,12 +287,10 @@ function scheduleNightlyRefresh() {
         )
       );
 
-      // Preserve completed items
       const completedItems = user.medicationSchedule.filter(
         (item) => item.status !== "pending"
       );
 
-      // Generate new schedule
       const newSchedule = generateMedicationSchedule(
         allReminders,
         user.timezone
@@ -311,4 +302,7 @@ function scheduleNightlyRefresh() {
   });
 }
 
+// Uncomment if you want to auto-refresh
 // scheduleNightlyRefresh();
+
+export default callRouter;

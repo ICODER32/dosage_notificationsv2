@@ -137,49 +137,34 @@ router.post("/sms/reply", async (req, res) => {
       .sort((a, b) => b.sentAt - a.sentAt);
 
     if (pendingNotifications.length === 0) {
-      const missedNotifications = user.notificationHistory
-        .filter((n) => n.status === "skipped")
-        .sort((a, b) => b.sentAt - a.sentAt);
+      // Get most recent missed OR taken
+      const lastAction = user.notificationHistory
+        .filter((n) => n.status === "skipped" || n.status === "taken")
+        .sort((a, b) => b.sentAt - a.sentAt)[0];
 
-      const takenNotifications = user.notificationHistory
-        .filter((n) => n.status === "taken")
-        .sort((a, b) => b.sentAt - a.sentAt);
+      if (lastAction) {
+        const meds = lastAction.medications.join(", ");
 
-      if (missedNotifications.length > 0) {
-        const lastMissed = missedNotifications[0];
-        const missedMeds = lastMissed.medications.join(", ");
-
-        // Lookup scheduled time from scheduleIds
-        const firstScheduleId = lastMissed.scheduleIds?.[0];
-        const scheduleItem = firstScheduleId
-          ? user.medicationSchedule.id(firstScheduleId)
-          : null;
-
-        let missedTime = "unknown time";
-        if (scheduleItem && scheduleItem.scheduledTime) {
-          missedTime = moment(scheduleItem.scheduledTime)
-            .tz(user.timezone)
-            .format("h:mm A");
+        // Lookup schedule time(s) from scheduleIds
+        let times = [];
+        for (const scheduleId of lastAction.scheduleIds || []) {
+          const scheduleItem = user.medicationSchedule.id(scheduleId);
+          if (scheduleItem?.scheduledTime) {
+            times.push(
+              moment(scheduleItem.scheduledTime)
+                .tz(user.timezone)
+                .format("h:mm A")
+            );
+          }
         }
 
-        reply = `You don't have any pending medications to confirm.\nYour ${missedMeds} dose at ${missedTime} was already marked as missed.`;
-      } else if (takenNotifications.length > 0) {
-        const lastTaken = takenNotifications[0];
-        const takenMeds = lastTaken.medications.join(", ");
+        const timeStr = times.length > 0 ? times.join(", ") : "unknown time";
 
-        const firstScheduleId = lastTaken.scheduleIds?.[0];
-        const scheduleItem = firstScheduleId
-          ? user.medicationSchedule.id(firstScheduleId)
-          : null;
-
-        let takenTime = "unknown time";
-        if (scheduleItem && scheduleItem.scheduledTime) {
-          takenTime = moment(scheduleItem.scheduledTime)
-            .tz(user.timezone)
-            .format("h:mm A");
+        if (lastAction.status === "skipped") {
+          reply = `You don't have any pending medications to confirm.\nYour ${meds} dose at ${timeStr} was already marked as missed.`;
+        } else if (lastAction.status === "taken") {
+          reply = `You don't have any pending medications to confirm.\nThe last medication you took was ${meds} at ${timeStr}.`;
         }
-
-        reply = `You don't have any pending medications to confirm.\nThe last medication you took was ${takenMeds} at ${takenTime}.`;
       } else {
         reply = "You don't have any pending medications to confirm.";
       }
