@@ -137,7 +137,7 @@ router.post("/sms/reply", async (req, res) => {
       .sort((a, b) => b.sentAt - a.sentAt);
 
     if (pendingNotifications.length === 0) {
-      // Get most recent missed OR taken
+      // Get most recent skipped OR taken
       const lastAction = user.notificationHistory
         .filter((n) => n.status === "skipped" || n.status === "taken")
         .sort((a, b) => b.sentAt - a.sentAt)[0];
@@ -145,7 +145,7 @@ router.post("/sms/reply", async (req, res) => {
       if (lastAction) {
         const meds = lastAction.medications.join(", ");
 
-        // Lookup schedule time(s) from scheduleIds
+        // 🔑 Get scheduled times from scheduleIds
         let times = [];
         for (const scheduleId of lastAction.scheduleIds || []) {
           const scheduleItem = user.medicationSchedule.id(scheduleId);
@@ -157,13 +157,12 @@ router.post("/sms/reply", async (req, res) => {
             );
           }
         }
-
         const timeStr = times.length > 0 ? times.join(", ") : "unknown time";
 
         if (lastAction.status === "skipped") {
-          reply = `You don't have any pending medications to confirm.\nYour ${meds} dose at ${timeStr} was already marked as missed.`;
+          reply = `You don't have any pending medications to confirm.\nYour ${meds} dose scheduled at ${timeStr} was already marked as missed.`;
         } else if (lastAction.status === "taken") {
-          reply = `You don't have any pending medications to confirm.\nThe last medication you took was ${meds} at ${timeStr}.`;
+          reply = `You don't have any pending medications to confirm.\nThe last medication you took was ${meds} scheduled at ${timeStr}.`;
         }
       } else {
         reply = "You don't have any pending medications to confirm.";
@@ -205,31 +204,33 @@ router.post("/sms/reply", async (req, res) => {
       .sort((a, b) => b.sentAt - a.sentAt);
 
     if (pendingNotifications.length === 0) {
-      // no pending → look for last taken / skipped
-      const skippedNotifications = user.notificationHistory
-        .filter((n) => n.status === "skipped")
-        .sort((a, b) => b.sentAt - a.sentAt);
+      // No pending → look for last skipped OR taken
+      const lastAction = user.notificationHistory
+        .filter((n) => n.status === "skipped" || n.status === "taken")
+        .sort((a, b) => b.sentAt - a.sentAt)[0];
 
-      const takenNotifications = user.notificationHistory
-        .filter((n) => n.status === "taken")
-        .sort((a, b) => b.sentAt - a.sentAt);
+      if (lastAction) {
+        const meds = lastAction.medications.join(", ");
 
-      if (skippedNotifications.length > 0) {
-        const lastSkipped = skippedNotifications[0];
-        const meds = lastSkipped.medications.join(", ");
-        const time = moment(lastSkipped.scheduledTime)
-          .tz(user.timezone)
-          .format("h:mm A");
+        // 🔑 Get scheduled times from scheduleIds
+        let times = [];
+        for (const scheduleId of lastAction.scheduleIds || []) {
+          const scheduleItem = user.medicationSchedule.id(scheduleId);
+          if (scheduleItem?.scheduledTime) {
+            times.push(
+              moment(scheduleItem.scheduledTime)
+                .tz(user.timezone)
+                .format("h:mm A")
+            );
+          }
+        }
+        const timeStr = times.length > 0 ? times.join(", ") : "unknown time";
 
-        reply = `You don't have any pending medications to skip.\nThe last medication you skipped was ${meds} at ${time}.`;
-      } else if (takenNotifications.length > 0) {
-        const lastTaken = takenNotifications[0];
-        const meds = lastTaken.medications.join(", ");
-        const time = moment(lastTaken.scheduledTime)
-          .tz(user.timezone)
-          .format("h:mm A");
-
-        reply = `You don't have any pending medications to skip.\nThe last medication you took was ${meds} at ${time}.`;
+        if (lastAction.status === "skipped") {
+          reply = `You don't have any pending medications to skip.\nThe last medication you skipped was ${meds} scheduled at ${timeStr}.`;
+        } else {
+          reply = `You don't have any pending medications to skip.\nThe last medication you took was ${meds} scheduled at ${timeStr}.`;
+        }
       } else {
         reply = "You don't have any pending medications to skip.";
       }

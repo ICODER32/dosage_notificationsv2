@@ -93,7 +93,7 @@ export function startReminderCron() {
               .tz(userTimezone)
               .format("h:mm A");
 
-            const message = `CareTrackRX Reminder\n\n💊 It's time to take:\n• ${medName} at ${timeStr}\n\nReply:\nD - Taken\nS - Skip`;
+            const message = ` It's time to take your medications:\n• ${medName} at ${timeStr}\n\nReply:\nD - Taken\nS - Skip \n\n Thank you for using CareTrackRx.`;
 
             // Create notification for this medication
             const notification = {
@@ -243,7 +243,7 @@ export function startReminderFollowupCron() {
 async function sendFollowupReminder(user, notification, resendCount) {
   try {
     const medList = notification.medications.join(", ");
-    const message = `CareTrackRX Reminder\n\n⏰ It's time to take: ${medList}\n\nReply:\nD – Taken\nS – Skip`;
+    const message = `Remainder \n\n It's time to take your medications:  \n ${medList}\n\nReply:\nD – Taken\nS – Skip. \n\n Thank you for using CareTrackRx.`;
 
     if (user.notificationType === "call" && resendCount === 0) {
       try {
