@@ -42,6 +42,7 @@ async function sendSMS(phoneNumber, message) {
       from: process.env.TWILIO_PHONE_NUMBER,
       to: `+${phoneNumber}`,
     });
+    console.log(message);
     console.log(`💬 SMS sent to ${phoneNumber}: ${sms.sid}`);
     return sms;
   } catch (error) {

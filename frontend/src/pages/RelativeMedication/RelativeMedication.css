@@ -337,3 +337,53 @@
 body.modal-open {
   overflow: hidden;
 }
+/* Add these styles to your existing RelativeMedication.css */
+
+/* Increase spacing between reminder times and stats */
+.reminder-times-container {
+  margin-bottom: 2rem; /* Increased from previous value */
+}
+
+.stats-container {
+  margin-top: 2rem; /* Added significant top margin */
+  padding-top: 1.5rem; /* Added internal padding */
+  border-top: 1px solid #e5e7eb; /* Keep the subtle separator */
+}
+
+/* If you want even more spacing, adjust the modal content gap */
+.medication-modal-details {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem; /* Increased from previous value for better spacing */
+}
+
+/* Additional styling for better visual hierarchy */
+.reminder-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem; /* Slightly increased gap between time chips */
+  margin-top: 0.75rem;
+}
+
+.reminder-time {
+  background-color: rgba(82, 113, 255, 0.15);
+  padding: 0.5rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #5271ff;
+}
+
+.doses-container {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.info-box {
+  background-color: #f9fafb;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  margin-top: 0.5rem;
+  border: 1px solid #e5e7eb;
+}

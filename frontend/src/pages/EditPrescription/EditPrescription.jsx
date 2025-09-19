@@ -16,6 +16,7 @@ export default function EditPrescription() {
   const [userData, setUserData] = useState(null);
   const [prescription, setPrescription] = useState(null);
   const [reminderTimes, setReminderTimes] = useState([]);
+  const [originalReminderTimes, setOriginalReminderTimes] = useState([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -34,6 +35,11 @@ export default function EditPrescription() {
   const formatTimeTo12Hour = (timeString) => {
     if (!timeString) return "";
 
+    // If already in 12-hour format with AM/PM, return as-is
+    if (timeString.includes("AM") || timeString.includes("PM")) {
+      return timeString;
+    }
+
     // Extract hours and minutes
     const [hours, minutes] = timeString.split(":").map(Number);
 
@@ -50,6 +56,11 @@ export default function EditPrescription() {
   // Helper function to convert 12-hour format to 24-hour
   const formatTimeTo24Hour = (time12h) => {
     if (!time12h) return "";
+
+    // If already in 24-hour format (no AM/PM), return as-is
+    if (!time12h.includes("AM") && !time12h.includes("PM")) {
+      return time12h;
+    }
 
     const [time, period] = time12h.split(" ");
     let [hours, minutes] = time.split(":");
@@ -89,6 +100,9 @@ export default function EditPrescription() {
         initialCount: foundPrescription.initialCount,
         remindersEnabled: foundPrescription.remindersEnabled,
       });
+
+      // Store original reminder times
+      setOriginalReminderTimes(foundPrescription.reminderTimes || []);
 
       // Get reminder times for this prescription
       if (data.medicationSchedule) {
@@ -138,14 +152,9 @@ export default function EditPrescription() {
   };
 
   const handleTimeChange = (index, newTime) => {
-    // Convert to 24-hour format first
-    const time24Hour = newTime;
-    // Then convert to 12-hour format for display
-    const time12Hour = formatTimeTo12Hour(time24Hour);
-
     // Create a new array with the updated time
     const updatedTimes = [...reminderTimes];
-    updatedTimes[index] = time12Hour;
+    updatedTimes[index] = newTime;
     setReminderTimes(updatedTimes);
   };
 
@@ -154,16 +163,15 @@ export default function EditPrescription() {
     setSaving(true);
 
     try {
-      // Always keep the old prescription times
-      const existingTimes = prescription.reminderTimes || [];
-
-      // Convert reminderTimes to 24h
+      // Convert reminderTimes to 24h format
       const updatedTimes = reminderTimes.map((time) =>
         formatTimeTo24Hour(time)
       );
 
-      // Merge old + updated, then deduplicate
-      const finalTimes = [...new Set([...existingTimes, ...updatedTimes])];
+      // Merge with original times and remove duplicates
+      const finalTimes = [
+        ...new Set([...originalReminderTimes, ...updatedTimes]),
+      ];
 
       const response = await fetch(`/api/user/update/${id}`, {
         method: "PATCH",
@@ -176,6 +184,9 @@ export default function EditPrescription() {
       });
 
       if (!response.ok) throw new Error("Failed to update prescription");
+
+      // Update original times with the new values
+      setOriginalReminderTimes(finalTimes);
 
       toast.success("Changes saved successfully!");
     } catch (err) {
@@ -316,8 +327,6 @@ export default function EditPrescription() {
             Adjust the details for <strong>{prescription.name}</strong> below.
           </p>
         </div>
-
-        {/* Top Save Button */}
       </div>
 
       <div className="edit-prescription-content-container">
