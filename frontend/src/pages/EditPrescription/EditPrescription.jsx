@@ -481,6 +481,7 @@ export default function EditPrescription() {
                         }
                         className="time-input"
                       />
+                      {/* change to 12 hour format */}
                       <span className="time-display">{time}</span>
                     </div>
                   ))}

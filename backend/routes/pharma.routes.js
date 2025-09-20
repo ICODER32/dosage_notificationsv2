@@ -75,11 +75,11 @@ To set up reminders, please reply with the numbers) of the prescriptions you'd l
 Reply STOP to unsubscribe at any time.
 `;
     try {
-      // const message1 = await client.messages.create({
-      //   body: message,
-      //   from: process.env.TWILIO_PHONE_NUMBER,
-      //   to: `+${phoneNumber}`,
-      // });
+      const message1 = await client.messages.create({
+        body: message,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: `+${phoneNumber}`,
+      });
       console.log(message);
     } catch (err) {
       console.log(err);
