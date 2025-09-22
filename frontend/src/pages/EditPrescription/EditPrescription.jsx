@@ -35,20 +35,30 @@ export default function EditPrescription() {
   const formatTimeTo12Hour = (timeString) => {
     if (!timeString) return "";
 
-    // If already in 12-hour format with AM/PM, return as-is
+    // Handle cases like "14:30", "02:15 PM", or even full ISO strings
+    let hours, minutes;
+
     if (timeString.includes("AM") || timeString.includes("PM")) {
+      // Already 12h format → return as-is
       return timeString;
+    } else if (timeString.includes("T")) {
+      // ISO string → extract hours/minutes
+      const date = new Date(timeString);
+      if (isNaN(date.getTime())) return "";
+      hours = date.getHours();
+      minutes = date.getMinutes();
+    } else {
+      // HH:mm format
+      const parts = timeString.split(":");
+      if (parts.length < 2) return "";
+      hours = parseInt(parts[0], 10);
+      minutes = parseInt(parts[1], 10);
     }
 
-    // Extract hours and minutes
-    const [hours, minutes] = timeString.split(":").map(Number);
-
-    // Convert to 12-hour format
+    // Convert to 12h
     const period = hours >= 12 ? "PM" : "AM";
     const hours12 = hours % 12 || 12;
-
-    // Format minutes with leading zero if needed
-    const formattedMinutes = minutes.toString().padStart(2, "0");
+    const formattedMinutes = String(minutes).padStart(2, "0");
 
     return `${hours12}:${formattedMinutes} ${period}`;
   };
@@ -482,7 +492,9 @@ export default function EditPrescription() {
                         className="time-input"
                       />
                       {/* change to 12 hour format */}
-                      <span className="time-display">{time}</span>
+                      <span className="time-display">
+                        {formatTimeTo12Hour(time)}
+                      </span>
                     </div>
                   ))}
                 </div>

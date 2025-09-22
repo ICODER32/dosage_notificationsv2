@@ -176,12 +176,14 @@ const Dashboard = () => {
     });
   };
 
-  const getReminderTimes = (prescriptionId) => {
+  const getReminderTimes = (prescription) => {
     if (!userData?.medicationSchedule) return [];
+
     const times = userData.medicationSchedule
-      .filter((item) => item.prescriptionId === prescriptionId)
+      .filter((item) => item.prescriptionName === prescription.name)
       .map((item) => formatTime(item.scheduledTime));
-    return [...new Set(times)];
+
+    return [...new Set(times)]; // remove duplicates
   };
 
   const openDetailsModal = (prescription) => {
@@ -194,6 +196,28 @@ const Dashboard = () => {
     setModalType(null);
     setEditableTimes([]);
     setNewTime("");
+  };
+  const getMedicationStats = (prescriptionName) => {
+    if (!userData?.medicationSchedule)
+      return { taken: 0, skipped: 0, missed: 0 };
+
+    const taken = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "taken"
+    ).length;
+    console.log(taken);
+
+    const skipped = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "skipped"
+    ).length;
+
+    const missed = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "missed"
+    ).length;
+
+    return { taken, skipped, missed };
   };
 
   if (!isAuthenticated) {
@@ -365,118 +389,98 @@ const Dashboard = () => {
       )}
 
       {/* Details Modal */}
-      {modalType === "details" && selectedPrescription && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2>Medication Details</h2>
-              <button onClick={closeModal} className="modal-close-btn">
-                <X size={24} />
-              </button>
-            </div>
+      {modalType === "details" &&
+        selectedPrescription &&
+        (() => {
+          // calculate stats safely when modal is open
+          const { taken, skipped, missed } = getMedicationStats(
+            selectedPrescription.name
+          );
+          const remaining = selectedPrescription.initialCount - taken;
 
-            <div className="modal-body">
-              <div className="detail-section">
-                <h3>{selectedPrescription.name}</h3>
-                <div
-                  className={`status-badge ${
-                    selectedPrescription.remindersEnabled ? "active" : "paused"
-                  }`}
-                >
-                  {selectedPrescription.remindersEnabled ? "Active" : "Paused"}
-                </div>
-              </div>
+          return (
+            <div className="relative-container">
+              <div className="modal-overlay">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h2 className="modal-title">Medication Details</h2>
+                    <button onClick={closeModal} className="modal-close-btn">
+                      <IoMdClose className="icon" />
+                    </button>
+                  </div>
 
-              <div className="detail-grid">
-                <div className="detail-item">
-                  <span className="detail-label">Dosage</span>
-                  <span className="detail-value">
-                    {selectedPrescription.dosage} pill(s) per dose
-                  </span>
-                </div>
+                  <div className="medication-modal-details">
+                    <div className="medication-modal-details-header">
+                      <h3>{selectedPrescription.name}</h3>
+                      <p>For: ({selectedPrescription.forWho})</p>
+                    </div>
 
-                <div className="detail-item">
-                  <span className="detail-label">Times per day</span>
-                  <span className="detail-value">
-                    {selectedPrescription.timesToTake}
-                  </span>
-                </div>
-
-                <div className="detail-item">
-                  <span className="detail-label">Initial Count</span>
-                  <span className="detail-value">
-                    {selectedPrescription.initialCount} pills
-                  </span>
-                </div>
-
-                <div className="detail-item">
-                  <span className="detail-label">Remaining</span>
-                  <span className="detail-value">
-                    {selectedPrescription.tracking.pillCount} pills
-                  </span>
-                </div>
-
-                <div className="detail-item">
-                  <span className="detail-label">Taken</span>
-                  <span className="detail-value">
-                    {selectedPrescription.initialCount -
-                      selectedPrescription.tracking.pillCount}{" "}
-                    pills
-                  </span>
-                </div>
-
-                <div className="detail-item">
-                  <span className="detail-label">Skipped</span>
-                  <span className="detail-value">
-                    {selectedPrescription.tracking.skippedCount} times
-                  </span>
-                </div>
-              </div>
-
-              <div className="detail-section">
-                <h4>Reminder Times</h4>
-                <div className="time-list">
-                  {getReminderTimes(selectedPrescription._id).map(
-                    (time, index) => (
-                      <div key={index} className="time-item">
-                        <Clock size={16} />
-                        <span>{time}</span>
+                    <div className="doses-container">
+                      <div>
+                        <p className="label">Doses per day</p>
+                        <p className="value">
+                          {selectedPrescription.timesToTake}
+                        </p>
                       </div>
-                    )
-                  )}
+                      <div>
+                        <p className="label">Next Dose</p>
+                        <p className="value">
+                          {getNextDose(selectedPrescription.name)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="reminder-times-container">
+                      <p className="label">Reminder Times</p>
+                      <div className="reminder-times">
+                        {getReminderTimes(selectedPrescription).map(
+                          (time, index) => (
+                            <div key={index} className="reminder-time">
+                              {time}
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="stats-container">
+                      <div className="stat-box stat-green">
+                        <p className="label">Taken</p>
+                        <p className="stat-value">{taken}</p>
+                      </div>
+                      <div className="stat-box stat-yellow">
+                        <p className="label">Total</p>
+                        <p className="stat-value">
+                          {selectedPrescription.initialCount}
+                        </p>
+                      </div>
+                      <div className="stat-box stat-red">
+                        <p className="label">Missed</p>
+                        <p className="stat-value">{missed}</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="label">Instructions</p>
+                      <p className="info-box">
+                        {selectedPrescription.instructions ||
+                          "No specific instructions provided."}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="label">Side Effects</p>
+                      <p className="info-box">
+                        {selectedPrescription.sideEffects ||
+                          "No significant side effects reported."}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {selectedPrescription.instructions && (
-                <div className="detail-section">
-                  <h4>Instructions</h4>
-                  <p>{selectedPrescription.instructions}</p>
-                </div>
-              )}
-
-              {selectedPrescription.sideEffects && (
-                <div className="detail-section">
-                  <h4>Side Effects</h4>
-                  <p>{selectedPrescription.sideEffects}</p>
-                </div>
-              )}
             </div>
-
-            <div className="modal-footer">
-              <Link
-                to={`/prescription/edit/${selectedPrescription._id}`}
-                className="edit-button"
-              >
-                <FaRegEdit size={16} />
-                Edit Medication
-              </Link>
-              <button onClick={closeModal} className="close-button">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
 
       {/* My Medications */}
       <div className="dashboard-top-container">
