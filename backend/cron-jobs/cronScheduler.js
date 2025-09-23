@@ -94,7 +94,7 @@ export function startReminderCron() {
               .tz(userTimezone)
               .format("h:mm A");
 
-            const message = ` It's time to take your medications:\n• ${medName} at ${timeStr}\n\nReply:\nD - Taken\nS - Skip \n\n Thank you for using CareTrackRx.`;
+            const message = ` It's time to take your medications:\n• ${medName} at ${timeStr}\n\nPlease Reply:\nD - if you have taken them\nS - if you need to skip them \n\n Thank you for using CareTrackRx.`;
 
             // Create notification for this medication
             const notification = {
