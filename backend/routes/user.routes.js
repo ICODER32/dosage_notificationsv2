@@ -539,22 +539,22 @@ router.post("/sms/reply", async (req, res) => {
           user.flowStep = "ask_notification_type";
 
           // Group medications by time and format the message
-          const groupedByTime = {};
+          const groupedByMed = {};
           uniqueReminders.forEach((reminder) => {
             const time12h = moment(reminder.time, "HH:mm").format("h:mm A");
-            if (!groupedByTime[time12h]) {
-              groupedByTime[time12h] = [];
+            if (!groupedByMed[reminder.prescriptionName]) {
+              groupedByMed[reminder.prescriptionName] = [];
             }
-            groupedByTime[time12h].push(reminder.prescriptionName);
+            groupedByMed[reminder.prescriptionName].push(time12h);
           });
 
           // Create the formatted message
           let medicationList = [];
-          for (const [time, meds] of Object.entries(groupedByTime)) {
-            medicationList.push(`${meds.join(", ")} at ${time}`);
+          for (const [med, times] of Object.entries(groupedByMed)) {
+            medicationList.push(`${med} at ${times.join(", ")}`);
           }
 
-          const formattedSchedule = medicationList.join("; ");
+          const formattedSchedule = medicationList.join("\n");
 
           reply = `Thank you! Your reminders are set up for:\n${formattedSchedule}\n\nSelect your notification type:\n1. SMS notifications\n2. Phone call notifications\n\nReply with 1 or 2`;
         } else {

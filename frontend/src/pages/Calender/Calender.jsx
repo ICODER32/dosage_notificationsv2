@@ -246,9 +246,31 @@ const CalendarPage = () => {
         </div>
 
         <div className="calender-nav-controls">
-          <button onClick={handlePrev}>&larr; Prev</button>
-          <button onClick={handleToday}>Today</button>
-          <button onClick={handleNext}>Next &rarr;</button>
+          <button onClick={handlePrev}>
+            &larr;{" "}
+            {currentView === "daily"
+              ? "Prev Day"
+              : currentView === "weekly"
+              ? "Prev Week"
+              : "Prev Month"}
+          </button>
+
+          <button onClick={handleToday}>
+            {currentView === "daily"
+              ? "Today"
+              : currentView === "weekly"
+              ? "This Week"
+              : "This Month"}
+          </button>
+
+          <button onClick={handleNext}>
+            {currentView === "daily"
+              ? "Next Day"
+              : currentView === "weekly"
+              ? "Next Week"
+              : "Next Month"}{" "}
+            &rarr;
+          </button>
         </div>
       </div>
 
@@ -429,6 +451,7 @@ const WeeklyView = ({ data }) => {
 };
 
 // Monthly View Component
+// Monthly View Component
 const MonthlyView = ({ data }) => {
   if (!data) return null;
 
@@ -438,14 +461,6 @@ const MonthlyView = ({ data }) => {
 
       <div className="daily-view-contents">
         <div className="monthly-view-contents-left">
-          <div className="monthly-view-contents-left-top">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-              <div key={day} className="date">
-                {day}
-              </div>
-            ))}
-          </div>
-
           <div className="monthly-view-contents-left-bottom">
             {data.weeks.map((week, weekIndex) => (
               <div key={weekIndex} className="monthly-pill-info-boxes">
@@ -456,7 +471,13 @@ const MonthlyView = ({ data }) => {
                       day.inMonth ? "" : "not-in-month"
                     }`}
                   >
+                    {/* Show weekday + date in each box */}
+                    <div className="monthly-day">
+                      {day.date.format("ddd")} {/* e.g., Mon, Tue */}
+                    </div>
                     <div className="monthly-date">{day.date.format("D")}</div>
+
+                    {/* Status indicator */}
                     <div className={`status-label ${day.status}`}></div>
                   </div>
                 ))}
