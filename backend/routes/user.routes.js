@@ -127,7 +127,7 @@ router.post("/sms/reply", async (req, res) => {
 
   // Handle special commands
   if (lowerMsg === "h" || lowerMsg === "help") {
-    reply = `Commands:\n\nT – set time\nD – confirm taken\nS – skip dose\nSTOP – stop reminders\nPAUSE - Doctor Advice or Breaks\nREMINDER- Continue after STOP\nRESUME Continue after PAUSE\nCANCEL - cancel reminders\nFor Dashboard, visit ${process.env.DASHBOARD_URL}`;
+    reply = `Commands:\n\nT – set time\nD – confirm taken\nS – skip dose\nSTOP – stop reminders\nPAUSE - Doctor Advice or Breaks\nREMINDER- Continue after STOP\nRESUME Continue after PAUSE\nCANCEL - cancel reminders\nN- To change notification type from SMS to Call or Call to SMS\nFor Dashboard, visit ${process.env.DASHBOARD_URL}`;
     handled = true;
   }
 
@@ -197,7 +197,21 @@ router.post("/sms/reply", async (req, res) => {
       handled = true;
     }
   }
+  //  change notification type to call if sms and sms if call
 
+  if (lowerMsg === "n") {
+    if (user.notificationType === "sms") {
+      user.notificationType = "call";
+      reply =
+        "Thank you for using CareTrackRX. Notification type changed to Call.";
+    } else {
+      user.notificationType = "sms";
+      reply =
+        "Thank you for using CareTrackRX. Notification type changed to SMS.";
+    }
+    handled = true;
+    await user.save();
+  }
   if (!handled && lowerMsg === "s") {
     const pendingNotifications = user.notificationHistory
       .filter((n) => n.status === "pending")

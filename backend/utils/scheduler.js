@@ -189,7 +189,7 @@ export const generateMedicationSchedule = (
             schedule.push({
               prescriptionName: r.prescriptionName,
               prescriptionId: r.prescriptionId,
-              scheduledTime: scheduledTime.toISO(),
+              scheduledTime,
               localTime: scheduledTime.toLocaleString(DateTime.DATETIME_MED),
               dosage: r.dosage,
               status: "pending",
@@ -201,5 +201,38 @@ export const generateMedicationSchedule = (
     }
   );
 
-  return schedule;
+  // === Conflict resolution (stagger 30 mins apart) ===
+  const groupedByDayTime = {};
+
+  schedule.forEach((item) => {
+    const key = DateTime.fromISO(item.scheduledTime.toISO())
+      .setZone(timezone)
+      .toFormat("yyyy-MM-dd HH:mm");
+    if (!groupedByDayTime[key]) groupedByDayTime[key] = [];
+    groupedByDayTime[key].push(item);
+  });
+
+  const adjustedSchedule = [];
+
+  Object.values(groupedByDayTime).forEach((group) => {
+    group.sort((a, b) => a.prescriptionName.localeCompare(b.prescriptionName));
+    group.forEach((item, i) => {
+      const dt = DateTime.fromISO(item.scheduledTime.toISO()).plus({
+        minutes: i * 30,
+      });
+      adjustedSchedule.push({
+        ...item,
+        scheduledTime: dt.toISO(),
+        localTime: dt.toLocaleString(DateTime.DATETIME_MED),
+      });
+    });
+  });
+
+  // Sort by time
+  adjustedSchedule.sort(
+    (a, b) =>
+      DateTime.fromISO(a.scheduledTime) - DateTime.fromISO(b.scheduledTime)
+  );
+
+  return adjustedSchedule;
 };
