@@ -19,18 +19,17 @@ const client = twilio(
 const callRouter = Router();
 
 // Helper function to make interactive phone calls
-async function makeInteractiveCall(phoneNumber, notificationId) {
+export async function makeInteractiveCall(phoneNumber, notificationId) {
   try {
     const call = await client.calls.create({
-      url: `http://18.218.16.247/api/calls/handle?notificationId=${notificationId}`,
+      url: `${process.env.SERVER_URL}/api/calls/handle?notificationId=${notificationId}`,
       to: `+${phoneNumber}`,
       from: process.env.TWILIO_PHONE_NUMBER,
     });
-    console.log(`📞 Call initiated to ${phoneNumber}: ${call.sid}`);
-    return call;
+    return call; // contains call.sid if accepted
   } catch (error) {
-    console.error(`❌ Error making call to ${phoneNumber}:`, error);
-    throw error;
+    console.error(`❌ Error making call to ${phoneNumber}:`, error.message);
+    throw new Error("CALL_NOT_PLACED"); // only trigger SMS fallback if not accepted
   }
 }
 
@@ -56,86 +55,102 @@ async function sendSMS(phoneNumber, message) {
  * Runs every minute and sends per-medication calls/SMS
  */
 export function startReminderCron() {
-  cron.schedule("*/1 * * * *", async () => {
+  cron.schedule("* * * * *", async () => {
     const now = moment.utc();
-    console.log(
-      `⏰ Reminder check at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
-    );
 
     try {
-      const activeUsers = await User.find({
-        status: "active",
-        notificationsEnabled: true,
-      });
+      const users = await User.find({ notificationsEnabled: true });
 
-      for (const user of activeUsers) {
-        try {
-          const userTimezone = user.timezone || "UTC";
+      for (const user of users) {
+        const userTimezone = user.timezone || "UTC";
 
-          // Find due reminders
-          const dueReminders = user.medicationSchedule.filter((schedule) => {
-            if (schedule.status !== "pending") return false;
-            if (schedule.remainderSent) return false;
+        // Filter due reminders
+        const dueReminders = user.medicationSchedule.filter(
+          (r) =>
+            r.status === "pending" &&
+            !r.reminderSent &&
+            moment.utc(r.scheduledTime).isSame(now, "minute")
+        );
 
-            const scheduledTime = moment.utc(schedule.scheduledTime);
-            const timeDiff = Math.abs(scheduledTime.diff(now, "minutes"));
-            return timeDiff <= 1;
-          });
+        if (dueReminders.length === 0) continue;
 
-          if (dueReminders.length === 0) continue;
+        // === group reminders by scheduled time ===
+        const groupedReminders = dueReminders.reduce((acc, reminder) => {
+          const timeKey = moment.utc(reminder.scheduledTime).format(); // ISO minute key
+          if (!acc[timeKey]) acc[timeKey] = [];
+          acc[timeKey].push(reminder);
+          return acc;
+        }, {});
 
-          // === process each reminder separately ===
-          for (const reminder of dueReminders) {
-            const medName = reminder.prescriptionName;
-            const scheduleId = reminder._id;
+        // Process each group (time slot)
+        for (const [timeKey, remindersAtSameTime] of Object.entries(
+          groupedReminders
+        )) {
+          const scheduleIds = remindersAtSameTime.map((r) => r._id);
+          const meds = remindersAtSameTime.map((r) => r.prescriptionName);
 
-            const timeStr = moment
-              .utc(reminder.scheduledTime)
-              .tz(userTimezone)
-              .format("h:mm A");
+          const timeStr = moment
+            .utc(remindersAtSameTime[0].scheduledTime)
+            .tz(userTimezone)
+            .format("h:mm A");
 
-            const message = ` It's time to take your medications:\n• ${medName} at ${timeStr}\n\nPlease Reply:\nD - if you have taken them\nS - if you need to skip them \n\n Thank you for using CareTrackRx.`;
+          // Build single message
+          const message = `It's time to take your medications:\n${meds
+            .map((m) => `• ${m} at ${timeStr}`)
+            .join(
+              "\n"
+            )}\n\nReply:\nD - if taken\nS - if skipped\n\nThank you for using CareTrackRx.`;
 
-            // Create notification for this medication
-            const notification = {
-              sentAt: now.toDate(),
-              message: `Reminder for ${medName}`,
-              status: "pending",
-              medications: [medName],
-              scheduleIds: [scheduleId],
-              resends: 0,
-              notificationType: user.notificationType || "sms",
-            };
+          // Push single notification
+          const notification = {
+            sentAt: now.toDate(),
+            message: `Reminder for ${meds.join(", ")}`,
+            status: "pending",
+            medications: meds,
+            scheduleIds,
+            resends: 0,
+            notificationType: user.notificationType || "sms",
+          };
 
-            user.notificationHistory.push(notification);
-            await user.save();
+          user.notificationHistory.push(notification);
+          await user.save();
+          const notificationId = user.notificationHistory.slice(-1)[0]._id;
 
-            const notificationId = user.notificationHistory.slice(-1)[0]._id;
+          // === Send notification ===
+          if (user.notificationType === "call") {
+            try {
+              const call = await makeInteractiveCall(
+                user.phoneNumber,
+                notificationId
+              );
 
-            // Send notification based on user preference
-            if (user.notificationType === "call") {
-              try {
-                await makeInteractiveCall(user.phoneNumber, notificationId);
-              } catch (error) {
+              // Only mark success if Twilio accepted call
+              if (call && call.sid) {
                 console.log(
-                  `⚠️ Call failed, fallback SMS for ${user.phoneNumber}`
+                  `📞 Call placed successfully for ${
+                    user.phoneNumber
+                  }, meds: ${meds.join(", ")}`
+                );
+              }
+            } catch (error) {
+              if (error.message === "CALL_NOT_PLACED") {
+                console.log(
+                  `⚠️ Call not placed, sending fallback SMS to ${user.phoneNumber}`
                 );
                 await sendSMS(user.phoneNumber, message);
               }
-            } else {
-              await sendSMS(user.phoneNumber, message);
             }
-
-            // Mark reminder as sent
-            reminder.remainderSent = true;
-            await user.save();
+          } else {
+            await sendSMS(user.phoneNumber, message);
           }
-        } catch (error) {
-          console.error(`🚨 Error processing ${user.phoneNumber}:`, error);
+
+          // === Mark all reminders in this slot as sent ===
+          remindersAtSameTime.forEach((r) => (r.reminderSent = true));
+          await user.save();
         }
       }
-    } catch (error) {
-      console.error("🚨 Critical error in reminder cycle:", error);
+    } catch (err) {
+      console.error("❌ Cron job error:", err.message);
     }
   });
 }
