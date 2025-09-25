@@ -22,7 +22,7 @@ const callRouter = Router();
 export async function makeInteractiveCall(phoneNumber, notificationId) {
   try {
     const call = await client.calls.create({
-      url: `${process.env.SERVER_URL}/api/calls/handle?notificationId=${notificationId}`,
+      url: `/api/calls/handle?notificationId=${notificationId}`,
       to: `+${phoneNumber}`,
       from: process.env.TWILIO_PHONE_NUMBER,
     });
