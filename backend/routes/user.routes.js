@@ -137,7 +137,7 @@ router.post("/sms/reply", async (req, res) => {
       .sort((a, b) => b.sentAt - a.sentAt);
 
     if (pendingNotifications.length === 0) {
-      // Get most recent skipped OR taken
+      // Get the very last action regardless of status
       const lastAction = user.notificationHistory
         .filter((n) => n.status === "skipped" || n.status === "taken")
         .sort((a, b) => b.sentAt - a.sentAt)[0];
@@ -145,7 +145,7 @@ router.post("/sms/reply", async (req, res) => {
       if (lastAction) {
         const meds = lastAction.medications.join(", ");
 
-        // 🔑 Get scheduled times from scheduleIds
+        // 🔑 Collect scheduled times
         let times = [];
         for (const scheduleId of lastAction.scheduleIds || []) {
           const scheduleItem = user.medicationSchedule.id(scheduleId);
@@ -159,6 +159,7 @@ router.post("/sms/reply", async (req, res) => {
         }
         const timeStr = times.length > 0 ? times.join(", ") : "unknown time";
 
+        // Just report back what the last status was
         if (lastAction.status === "skipped") {
           reply = `You don't have any pending medications to confirm.\nYour ${meds} dose scheduled at ${timeStr} was already marked as missed.`;
         } else if (lastAction.status === "taken") {
@@ -171,6 +172,7 @@ router.post("/sms/reply", async (req, res) => {
       console.log(reply);
       handled = true;
     } else {
+      // Mark most recent pending as taken
       const mostRecentNotification = pendingNotifications[0];
       mostRecentNotification.status = "taken";
 
@@ -197,6 +199,7 @@ router.post("/sms/reply", async (req, res) => {
       handled = true;
     }
   }
+
   //  change notification type to call if sms and sms if call
 
   if (lowerMsg === "n") {
