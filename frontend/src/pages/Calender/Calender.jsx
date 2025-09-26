@@ -43,27 +43,27 @@ const CalendarPage = () => {
   };
 
   // Normalize all events into user timezone and correct status
-  // Normalize all events into user timezone and correct status
   const normalizeEvents = (schedule, userTz, notifications) => {
     const now = moment().tz(userTz);
 
     return schedule.map((entry) => {
       const userScheduledTime = moment(entry.scheduledTime).tz(userTz);
 
-      // Default to DB status
+      // Find matching notification
+      const notification = notifications.find((notif) => {
+        const notifTime = moment(notif.sentAt).tz(userTz);
+        return (
+          notif.medications.includes(entry.prescriptionName) &&
+          notifTime.isSame(userScheduledTime, "minute")
+        );
+      });
+
       let status = entry.status || "pending";
+      if (notification) status = notification.status;
 
-      // Check notificationHistory for overrides
-      const notif = notifications.find((n) =>
-        n.scheduleIds?.some((id) => id.$oid === entry._id?.$oid)
-      );
-      if (notif?.status) {
-        status = notif.status;
-      }
-
-      // If still pending and time has passed, mark as missed
-      if (status === "pending" && userScheduledTime.isBefore(now)) {
-        status = "missed";
+      // If still pending, decide missed or pending
+      if (status === "pending") {
+        if (userScheduledTime.isBefore(now)) status = "missed";
       }
 
       return {
