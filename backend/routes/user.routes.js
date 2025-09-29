@@ -110,6 +110,7 @@ router.post("/sms/reply", async (req, res) => {
     WV: "America/New_York", // West Virginia
     WI: "America/Chicago", // Wisconsin
     WY: "America/Denver",
+    DEU: "Europe/Berlin", // Germany – CET/CEST
   };
   if (req.body.FromState && stateTimezones[req.body.FromState]) {
     user.timezone = stateTimezones[req.body.FromState];
@@ -131,7 +132,7 @@ router.post("/sms/reply", async (req, res) => {
     handled = true;
   }
 
-  if (lowerMsg === "d") {
+  if (!handled && lowerMsg === "d") {
     const pendingNotifications = user.notificationHistory
       .filter((n) => n.status === "pending")
       .sort((a, b) => b.sentAt - a.sentAt);

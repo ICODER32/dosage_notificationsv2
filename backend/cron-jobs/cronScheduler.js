@@ -259,7 +259,7 @@ export function startReminderFollowupCron() {
 async function sendFollowupReminder(user, notification, resendCount) {
   try {
     const medList = notification.medications.join(", ");
-    const message = `It's time to take your medications:  \n ${medList}\n\n Please Reply:\nD – if you have taken them \nS – if you need to skip the dose. \n\n Thank you for using CareTrackRx.`;
+    const message = `Remainder \n\n It's time to take your medications:  \n ${medList}\n\n Please Reply:\nD – if you have taken them \nS – if you need to skip the dose. \n\n Thank you for using CareTrackRx.`;
 
     if (user.notificationType === "call" && resendCount === 0) {
       try {

@@ -14,6 +14,11 @@ const countryCodes = [
     flag: "🇵🇰",
     name: "Pakistan",
   },
+  {
+    code: "+49",
+    name: "Germany",
+    flag: "🇩🇪",
+  },
 ];
 
 const LoginPage = () => {
