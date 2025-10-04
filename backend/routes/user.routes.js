@@ -128,7 +128,7 @@ router.post("/sms/reply", async (req, res) => {
 
   // Handle special commands
   if (lowerMsg === "h" || lowerMsg === "help") {
-    reply = `Commands:\n\nT – set time\nD – confirm taken\nS – skip dose\nSTOP – stop reminders\nPAUSE - Doctor Advice or Breaks\nREMINDER- Continue after STOP\nRESUME Continue after PAUSE\nCANCEL - cancel reminders\nN- To change notification type from SMS to Call or Call to SMS\nFor Dashboard, visit ${process.env.DASHBOARD_URL}`;
+    reply = `Commands:\n\nT – set time\nD – confirm taken\nS – skip dose\nPAUSE - Doctor Advice or Breaks\nRESUME Continue after PAUSE\nCANCEL - cancel reminders\nN- To change notification type from SMS to Call or Call to SMS\nFor Dashboard, visit ${process.env.DASHBOARD_URL}`;
     handled = true;
   }
 
@@ -348,13 +348,41 @@ router.post("/sms/reply", async (req, res) => {
   }
 
   if (!handled && lowerMsg === "pause") {
-    user.status = "paused";
-    user.tracking.optOutDate = now;
-    user.prescriptions.forEach((p) => {
-      p.remindersEnabled = false;
+    if (user.prescriptions.length === 0) {
+      reply = "You don’t have any active medications to pause.";
+      handled = true;
+    } else {
+      let list = "Which medication would you like to pause?\n";
+      user.prescriptions.forEach((p, idx) => {
+        list += `${idx + 1}. ${p.name}\n`;
+      });
+
+      reply = list + "Reply with the number(s), e.g. '1' or '1,2'";
+      console.log(reply);
+      user.flowStep = "pause_select"; // 🔑 move flow into selection mode
+      handled = true;
+    }
+  }
+  if (!handled && user.flowStep === "pause_select") {
+    const numbers = lowerMsg.split(",").map((n) => parseInt(n.trim(), 10));
+    const pausedMeds = [];
+
+    numbers.forEach((num) => {
+      const index = num - 1;
+      if (!isNaN(index) && user.prescriptions[index]) {
+        user.prescriptions[index].remindersEnabled = false;
+        pausedMeds.push(user.prescriptions[index].name);
+      }
     });
-    user.medicationSchedule = [];
-    reply = "Reminders paused for all medications. Text RESUME to resume.";
+
+    if (pausedMeds.length > 0) {
+      reply = `Paused reminders for: ${pausedMeds.join(", ")}.`;
+    } else {
+      reply = "Invalid selection. Please reply with valid medication numbers.";
+    }
+    console.log(reply);
+
+    user.flowStep = "init"; // 🔑 reset flow
     handled = true;
   }
 
