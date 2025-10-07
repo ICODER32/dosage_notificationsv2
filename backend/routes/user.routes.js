@@ -525,8 +525,9 @@ router.post("/sms/reply", async (req, res) => {
         break;
 
       case "ask_sleep_time":
-        if (validateTime(msg, "night")) {
-          user.sleepTime = parseTime(msg);
+        const parsed = parseTime(msg, "PM");
+        if (parsed) {
+          user.sleepTime = parsed;
 
           const enabledMeds = user.prescriptions.filter(
             (p) => p.remindersEnabled
@@ -812,24 +813,40 @@ function validateTime(input, type) {
 }
 
 // Parse time input into HH:mm format
-function parseTime(input) {
+function parseTime(input, defaultPeriod = null) {
+  input = input.trim().toLowerCase();
+
+  // Handle inputs like "1030" → "10:30"
+  if (/^\d{3,4}$/.test(input)) {
+    input =
+      input.length === 3
+        ? `${input[0]}:${input.slice(1)}`
+        : `${input.slice(0, 2)}:${input.slice(2)}`;
+  }
+
   const timeRegex = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i;
   const match = input.match(timeRegex);
 
-  if (!match) return "08:00"; // Default if parsing fails
+  if (!match) return "08:00"; // default fallback if invalid
 
   let [_, hour, minute, period] = match;
   hour = parseInt(hour, 10);
   minute = minute ? parseInt(minute, 10) : 0;
 
+  // Apply default AM/PM if user didn’t specify
+  if (!period && defaultPeriod) {
+    period = defaultPeriod.toLowerCase();
+  }
+
   // Convert to 24-hour format
   if (period) {
-    period = period.toLowerCase();
     if (period === "pm" && hour < 12) hour += 12;
     if (period === "am" && hour === 12) hour = 0;
   }
 
-  // Format as HH:mm
+  // Keep hours within 0–23
+  hour = hour % 24;
+
   return `${hour.toString().padStart(2, "0")}:${minute
     .toString()
     .padStart(2, "0")}`;
