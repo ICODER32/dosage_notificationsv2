@@ -15,6 +15,8 @@ const __dirname = path.dirname(__filename);
 import {
   startReminderCron,
   startReminderFollowupCron,
+  startLowPillCheckCron,
+  startPrescriptionOverCron,
 } from "./cron-jobs/cronScheduler.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
@@ -52,5 +54,8 @@ app.listen(PORT, () => {
   dbConnect();
   startReminderCron();
   startReminderFollowupCron();
+  startLowPillCheckCron();
+  startPrescriptionOverCron();
+
   console.log("Reminder cron jobs started");
 });

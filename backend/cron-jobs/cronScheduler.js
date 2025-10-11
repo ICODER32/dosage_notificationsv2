@@ -318,6 +318,123 @@ function scheduleNightlyRefresh() {
   });
 }
 
+/**
+ * Cron Job — Low-pill reminder (less than 2 days left)
+ * Runs daily at 9 AM UTC
+ */
+export function startLowPillCheckCron() {
+  cron.schedule("0 9 * * *", async () => {
+    const now = moment.utc();
+    console.log(
+      `🧾 Low-pill check running at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
+    );
+
+    try {
+      const users = await User.find({
+        status: "active",
+        notificationsEnabled: true,
+      });
+
+      for (const user of users) {
+        if (!user.prescriptions || user.prescriptions.length === 0) continue;
+
+        const lowPillPrescriptions = [];
+
+        for (const prescription of user.prescriptions) {
+          // Skip if not tracking pills
+          if (
+            !prescription.tracking ||
+            !prescription.tracking.pillCount ||
+            !prescription.timesToTake
+          )
+            continue;
+
+          // Estimate daily usage (pills per day)
+          const pillsPerDay = Array.isArray(prescription.timesToTake)
+            ? prescription.timesToTake.length
+            : 1;
+
+          const daysLeft = prescription.tracking.pillCount / pillsPerDay;
+
+          if (daysLeft < 2 && prescription.tracking.pillCount > 0) {
+            lowPillPrescriptions.push(prescription.name);
+          }
+        }
+
+        if (lowPillPrescriptions.length > 0) {
+          const message = `⚠️ You have less than 2 days of pills left for:\n${lowPillPrescriptions
+            .map((m) => `• ${m}`)
+            .join(
+              "\n"
+            )}\n\nPlease arrange a refill soon.\nThank you for using CareTrackRx!`;
+
+          try {
+            await sendSMS(user.phoneNumber, message);
+            console.log(`💊 Low-pill reminder sent to ${user.phoneNumber}`);
+          } catch (error) {
+            console.error(
+              `❌ Failed low-pill SMS for ${user.phoneNumber}:`,
+              error
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.error("🚨 Error in low-pill check cron:", err);
+    }
+  });
+}
+
+/**
+ * Cron Job — Prescription over (pill count = 0)
+ * Runs daily at 10 AM UTC
+ */
+export function startPrescriptionOverCron() {
+  cron.schedule("0 10 * * *", async () => {
+    const now = moment.utc();
+    console.log(
+      `🗑️ Prescription-over check at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
+    );
+
+    try {
+      const users = await User.find({ status: "active" });
+
+      for (const user of users) {
+        if (!user.prescriptions || user.prescriptions.length === 0) continue;
+
+        const zeroPillPrescriptions = user.prescriptions.filter(
+          (p) => p.tracking && p.tracking.pillCount <= 0
+        );
+
+        if (zeroPillPrescriptions.length === 0) continue;
+
+        // Send message before deleting
+        const message = `✅ Your prescription period is complete for:\n${zeroPillPrescriptions
+          .map((p) => `• ${p.name}`)
+          .join(
+            "\n"
+          )}\n\nYour account will now be removed from CareTrackRx.\nStay healthy!`;
+
+        try {
+          await sendSMS(user.phoneNumber, message);
+          console.log(`📨 Prescription-over SMS sent to ${user.phoneNumber}`);
+        } catch (error) {
+          console.error(
+            `❌ Failed to send end SMS to ${user.phoneNumber}:`,
+            error
+          );
+        }
+
+        // Delete user record
+        await User.deleteOne({ _id: user._id });
+        console.log(`🗑️ User ${user.phoneNumber} deleted due to zero pills.`);
+      }
+    } catch (err) {
+      console.error("🚨 Error in prescription-over cron:", err);
+    }
+  });
+}
+
 // Uncomment if you want to auto-refresh
 // scheduleNightlyRefresh();
 
