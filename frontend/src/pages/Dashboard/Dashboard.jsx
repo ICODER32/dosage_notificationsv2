@@ -451,12 +451,19 @@ const Dashboard = () => {
                       <div className="stat-box stat-yellow">
                         <p className="label">Total</p>
                         <p className="stat-value">
-                          {selectedPrescription.initialCount}
+                          {selectedPrescription.initialCount -
+                            selectedPrescription.tracking.skippedCount}
                         </p>
                       </div>
                       <div className="stat-box stat-red">
                         <p className="label">Missed</p>
                         <p className="stat-value">{missed}</p>
+                      </div>
+                      <div className="stat-box stat-red">
+                        <p className="label">Skipped</p>
+                        <p className="stat-value">
+                          {selectedPrescription.tracking.skippedCount}
+                        </p>
                       </div>
                     </div>
 

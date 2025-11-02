@@ -323,66 +323,76 @@ function scheduleNightlyRefresh() {
  * Runs daily at 9 AM UTC
  */
 export function startLowPillCheckCron() {
-  cron.schedule("0 9 * * *", async () => {
-    const now = moment.utc();
-    console.log(
-      `🧾 Low-pill check running at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
-    );
+  // Runs every day at 9 AM Pakistan time
+  cron.schedule(
+    "0 9 * * *",
+    async () => {
+      const now = moment.tz("Asia/Karachi");
+      console.log(
+        `🧾 Low-pill check running at ${now.format("YYYY-MM-DD HH:mm:ss z")}`
+      );
 
-    try {
-      const users = await User.find({
-        status: "active",
-        notificationsEnabled: true,
-      });
+      try {
+        const users = await User.find({
+          status: "active",
+          notificationsEnabled: true,
+        });
 
-      for (const user of users) {
-        if (!user.prescriptions || user.prescriptions.length === 0) continue;
+        for (const user of users) {
+          if (!user.prescriptions || user.prescriptions.length === 0) continue;
 
-        const lowPillPrescriptions = [];
+          const lowPillPrescriptions = [];
 
-        for (const prescription of user.prescriptions) {
-          // Skip if not tracking pills
-          if (
-            !prescription.tracking ||
-            !prescription.tracking.pillCount ||
-            !prescription.timesToTake
-          )
-            continue;
+          for (const prescription of user.prescriptions) {
+            const totalPills = prescription.initialCount || 0;
+            const timesToTake = prescription.timesToTake || 1;
+            const dosage = prescription.dosage || 1;
 
-          // Estimate daily usage (pills per day)
-          const pillsPerDay = Array.isArray(prescription.timesToTake)
-            ? prescription.timesToTake.length
-            : 1;
+            // Each day consumes dosage * timesToTake pills
+            const pillsPerDay = dosage * timesToTake;
 
-          const daysLeft = prescription.tracking.pillCount / pillsPerDay;
+            // If you’re tracking remaining pills dynamically, replace this with prescription.tracking.remainingCount
+            const remainingPills =
+              prescription.tracking?.pillCount ?? totalPills;
 
-          if (daysLeft < 2 && prescription.tracking.pillCount > 0) {
-            lowPillPrescriptions.push(prescription.name);
+            if (!remainingPills || remainingPills <= 0) continue;
+
+            const daysLeft = remainingPills / pillsPerDay;
+
+            if (daysLeft < 2 && remainingPills > 0) {
+              lowPillPrescriptions.push({
+                name: prescription.name,
+                daysLeft: daysLeft.toFixed(1),
+              });
+            }
+          }
+
+          if (lowPillPrescriptions.length > 0) {
+            const message = `⚠️ You have less than 2 days of pills left for:\n${lowPillPrescriptions
+              .map((m) => `• ${m.name} (${m.daysLeft} days left)`)
+              .join(
+                "\n"
+              )}\n\nPlease arrange a refill soon.\nThank you for using CareTrackRx!`;
+
+            try {
+              await sendSMS(user.phoneNumber, message);
+              console.log(`💊 Low-pill reminder sent to ${user.phoneNumber}`);
+            } catch (error) {
+              console.error(
+                `❌ Failed low-pill SMS for ${user.phoneNumber}:`,
+                error.message
+              );
+            }
           }
         }
-
-        if (lowPillPrescriptions.length > 0) {
-          const message = `⚠️ You have less than 2 days of pills left for:\n${lowPillPrescriptions
-            .map((m) => `• ${m}`)
-            .join(
-              "\n"
-            )}\n\nPlease arrange a refill soon.\nThank you for using CareTrackRx!`;
-
-          try {
-            await sendSMS(user.phoneNumber, message);
-            console.log(`💊 Low-pill reminder sent to ${user.phoneNumber}`);
-          } catch (error) {
-            console.error(
-              `❌ Failed low-pill SMS for ${user.phoneNumber}:`,
-              error
-            );
-          }
-        }
+      } catch (err) {
+        console.error("🚨 Error in low-pill check cron:", err.message);
       }
-    } catch (err) {
-      console.error("🚨 Error in low-pill check cron:", err);
+    },
+    {
+      timezone: "Asia/Karachi", // ensures it runs at 9 AM Pakistan time
     }
-  });
+  );
 }
 
 /**

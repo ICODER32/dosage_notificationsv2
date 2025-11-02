@@ -91,6 +91,7 @@ export default function EditPrescription() {
       const response = await fetch(`/api/user/getData/${phoneNumber}`);
       if (!response.ok) throw new Error("Network response was not ok");
       const data = await response.json();
+      console.log(data);
       setUserData(data);
 
       // Find the specific prescription

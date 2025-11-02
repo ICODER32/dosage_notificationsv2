@@ -1,6 +1,6 @@
 import { DateTime } from "luxon";
 
-// Calculate reminder times using wake/sleep and frequency
+// === Calculate reminder times ===
 export const calculateReminderTimes = (
   wakeTime,
   sleepTime,
@@ -27,7 +27,7 @@ export const calculateReminderTimes = (
       .padStart(2, "0")}`;
   };
 
-  // Helper to check for specific instruction keywords
+  // Helper keywords
   const isBeforeBed =
     normalizedInstructions.includes("bed") ||
     normalizedInstructions.includes("sleep");
@@ -41,20 +41,17 @@ export const calculateReminderTimes = (
     normalizedInstructions.includes("before meal") ||
     normalizedInstructions.includes("before food");
 
-  // Handle single dose medications
+  // Single dose
   if (frequency === 1) {
     let reminderMin;
-
     if (isBeforeBed) {
-      reminderMin = sleepTotalMin - 60; // 1 hour before bed
+      reminderMin = sleepTotalMin - 60;
     } else if (isWithBreakfast) {
-      reminderMin = wakeTotalMin + 60; // 1 hour after wake
+      reminderMin = wakeTotalMin + 60;
     } else if (isAfterMeal || isBeforeMeal) {
-      // Default to lunch time (midpoint between wake and sleep)
       reminderMin =
         wakeTotalMin + Math.floor((sleepTotalMin - wakeTotalMin) / 2);
     } else {
-      // Default: 1 hour after wake time
       reminderMin = wakeTotalMin + 60;
     }
 
@@ -67,25 +64,21 @@ export const calculateReminderTimes = (
     return times;
   }
 
-  // Handle two doses
+  // Two doses
   if (frequency === 2) {
     let firstDose, secondDose;
 
     if (isBeforeBed || isWithBreakfast) {
-      // New behavior: breakfast + bedtime (skip noon)
-      firstDose = wakeTotalMin + 60; // Breakfast
-      secondDose = sleepTotalMin - 60; // Bedtime
+      firstDose = wakeTotalMin + 60;
+      secondDose = sleepTotalMin - 60;
     } else if (normalizedInstructions.includes("dinner")) {
-      // Existing dinner behavior
       firstDose = wakeTotalMin + 60;
       secondDose = sleepTotalMin - 60;
     } else {
-      // Default behavior
       firstDose = wakeTotalMin + 60;
       secondDose = sleepTotalMin - 60;
     }
 
-    // Add both doses to schedule
     times.push({
       prescriptionName: name,
       time: formatTime(firstDose),
@@ -101,31 +94,24 @@ export const calculateReminderTimes = (
     return times;
   }
 
-  // Handle three or more doses
-  const buffer = 60; // 1-hour buffer before/after sleep
+  // Three or more doses
+  const buffer = 60;
   let startTime = wakeTotalMin;
   let endTime = sleepTotalMin;
 
-  // Adjust boundaries based on instructions
   if (isWithBreakfast) startTime += 60;
   if (isBeforeBed) endTime -= 60;
-
-  // Ensure valid time range
   if (endTime <= startTime) endTime = startTime + 60 * frequency;
 
   const timeRange = endTime - startTime;
   const interval = timeRange / (frequency - 1);
 
-  // Generate dose times
   for (let i = 0; i < frequency; i++) {
     let doseTime = startTime + i * interval;
 
-    // Adjust last dose if "before bed" specified
     if (isBeforeBed && i === frequency - 1) {
       doseTime = sleepTotalMin - 60;
-    }
-    // Adjust first dose if "with breakfast" specified
-    else if (isWithBreakfast && i === 0) {
+    } else if (isWithBreakfast && i === 0) {
       doseTime = wakeTotalMin + 60;
     }
 
@@ -140,16 +126,6 @@ export const calculateReminderTimes = (
   return times;
 };
 
-// Generate full medication schedule for all reminders
-const formatTime = (totalMinutes) => {
-  const hour = Math.floor(totalMinutes / 60) % 24;
-  const min = Math.floor(totalMinutes % 60);
-  return `${hour.toString().padStart(2, "0")}:${min
-    .toString()
-    .padStart(2, "0")}`;
-};
-
-// Generate full medication schedule
 export const generateMedicationSchedule = (
   reminders,
   timezone,
@@ -158,7 +134,7 @@ export const generateMedicationSchedule = (
   const now = DateTime.now().setZone(timezone);
   const schedule = [];
 
-  // Group reminders by prescription ID instead of name
+  // === Group reminders by prescription ===
   const groupedByPrescription = reminders.reduce((acc, r) => {
     const key = r.prescriptionId || r.prescriptionName;
     if (!acc[key]) acc[key] = [];
@@ -171,8 +147,15 @@ export const generateMedicationSchedule = (
       const adjustedStart = DateTime.fromJSDate(startDate).setZone(timezone);
       const today = adjustedStart.startOf("day");
 
-      // Only generate schedule for next 7 days
-      for (let day = 0; day < 7; day++) {
+      // === Dynamic days based on available pills ===
+      const sampleReminder = reminderArray[0];
+      const { pillCount = 0, dosage = 1 } = sampleReminder;
+      const timesPerDay = reminderArray.length;
+      let daysToGenerate = Math.floor(pillCount / (dosage * timesPerDay));
+      if (daysToGenerate < 1) daysToGenerate = 1; // Always generate at least 1 day
+
+      // === Generate schedule for each day & dose ===
+      for (let day = 0; day < daysToGenerate; day++) {
         const currentDay = today.plus({ days: day });
 
         reminderArray.forEach((r) => {
@@ -184,12 +167,12 @@ export const generateMedicationSchedule = (
             millisecond: 0,
           });
 
-          // Only create future schedule items
+          // Only future reminders are added
           if (scheduledTime > now) {
             schedule.push({
               prescriptionName: r.prescriptionName,
               prescriptionId: r.prescriptionId,
-              scheduledTime,
+              scheduledTime: scheduledTime.toISO(),
               localTime: scheduledTime.toLocaleString(DateTime.DATETIME_MED),
               dosage: r.dosage,
               status: "pending",
@@ -201,13 +184,11 @@ export const generateMedicationSchedule = (
     }
   );
 
-  // === Conflict resolution (stagger 30 mins apart) ===
+  // === Conflict resolution (stagger reminders by 30 mins if same time) ===
   const groupedByDayTime = {};
-
   schedule.forEach((item) => {
-    const key = DateTime.fromISO(item.scheduledTime.toISO())
-      .setZone(timezone)
-      .toFormat("yyyy-MM-dd HH:mm");
+    const dt = DateTime.fromISO(item.scheduledTime).setZone(timezone);
+    const key = dt.toFormat("yyyy-MM-dd HH:mm");
     if (!groupedByDayTime[key]) groupedByDayTime[key] = [];
     groupedByDayTime[key].push(item);
   });
@@ -215,11 +196,12 @@ export const generateMedicationSchedule = (
   const adjustedSchedule = [];
 
   Object.values(groupedByDayTime).forEach((group) => {
+    // Sort same-time reminders by name for consistent staggering
     group.sort((a, b) => a.prescriptionName.localeCompare(b.prescriptionName));
     group.forEach((item, i) => {
-      const dt = DateTime.fromISO(item.scheduledTime.toISO()).plus({
-        minutes: i * 30,
-      });
+      const dt = DateTime.fromISO(item.scheduledTime)
+        .plus({ minutes: i * 30 }) // stagger 30 minutes apart
+        .setZone(timezone);
       adjustedSchedule.push({
         ...item,
         scheduledTime: dt.toISO(),
@@ -228,7 +210,7 @@ export const generateMedicationSchedule = (
     });
   });
 
-  // Sort by time
+  // === Final sorting by actual time ===
   adjustedSchedule.sort(
     (a, b) =>
       DateTime.fromISO(a.scheduledTime) - DateTime.fromISO(b.scheduledTime)
