@@ -382,7 +382,19 @@ export function startLowPillCheckCron() {
                 `❌ Failed low-pill SMS for ${user.phoneNumber}:`,
                 error.message
               );
-            }
+          }
+        }
+        }
+      } catch (err) {
+        console.error("🚨 Error in low-pill check cron:", err.message);
+      }
+    }
+  );
+}
+
+/**
+ * Cron Job — Prescription over (pill count = 0)
+ * Runs daily at 10 AM UTC
  */
 export function startPrescriptionOverCron() {
   cron.schedule("0 10 * * *", async () => {
