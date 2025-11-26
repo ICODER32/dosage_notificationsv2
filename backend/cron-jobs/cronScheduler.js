@@ -435,9 +435,9 @@ export function startPrescriptionOverCron() {
           );
         }
 
-        // Delete user record
-        await User.deleteOne({ _id: user._id });
-        console.log(`🗑️ User ${user.phoneNumber} deleted due to zero pills.`);
+        // User deletion removed. Only notifying.
+        // await User.deleteOne({ _id: user._id });
+        // console.log(`🗑️ User ${user.phoneNumber} deleted due to zero pills.`);
       }
     } catch (err) {
       console.error("🚨 Error in prescription-over cron:", err);

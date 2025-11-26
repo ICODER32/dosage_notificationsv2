@@ -152,7 +152,7 @@ export const generateMedicationSchedule = (
       const { pillCount = 0, dosage = 1 } = sampleReminder;
       const timesPerDay = reminderArray.length;
       let daysToGenerate = Math.floor(pillCount / (dosage * timesPerDay));
-      if (daysToGenerate < 1) daysToGenerate = 1; // Always generate at least 1 day
+      if (daysToGenerate < 1 && pillCount > 0) daysToGenerate = 1; // Generate at least 1 day if pills exist, else 0
 
       // === Generate schedule for each day & dose ===
       for (let day = 0; day < daysToGenerate; day++) {
