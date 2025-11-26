@@ -86,6 +86,10 @@ const prescriptionSchema = new mongoose.Schema({
       min: 0,
     },
   },
+  finishedNotified: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const userSchema = new mongoose.Schema({

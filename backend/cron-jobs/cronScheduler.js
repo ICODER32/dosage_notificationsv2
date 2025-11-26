@@ -413,7 +413,7 @@ export function startPrescriptionOverCron() {
         if (!user.prescriptions || user.prescriptions.length === 0) continue;
 
         const zeroPillPrescriptions = user.prescriptions.filter(
-          (p) => p.tracking && p.tracking.pillCount <= 0
+          (p) => p.tracking && p.tracking.pillCount <= 0 && !p.finishedNotified
         );
 
         if (zeroPillPrescriptions.length === 0) continue;
@@ -423,11 +423,16 @@ export function startPrescriptionOverCron() {
           .map((p) => `• ${p.name}`)
           .join(
             "\n"
-          )}\n\nYour account will now be removed from CareTrackRx.\nStay healthy!`;
+          )}\n\nPlease contact your doctor if you need a refill.\nStay healthy!`;
 
         try {
           await sendSMS(user.phoneNumber, message);
           console.log(`📨 Prescription-over SMS sent to ${user.phoneNumber}`);
+          
+          // Mark as notified
+          zeroPillPrescriptions.forEach(p => p.finishedNotified = true);
+          await user.save();
+
         } catch (error) {
           console.error(
             `❌ Failed to send end SMS to ${user.phoneNumber}:`,
