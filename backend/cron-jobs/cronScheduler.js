@@ -325,9 +325,9 @@ function scheduleNightlyRefresh() {
 export function startLowPillCheckCron() {
   // Runs every day at 9 AM Pakistan time
   cron.schedule(
-    "0 9 * * *",
+    "0 14 * * *",
     async () => {
-      const now = moment.tz("Asia/Karachi");
+      const now = moment.utc();
       console.log(
         `🧾 Low-pill check running at ${now.format("YYYY-MM-DD HH:mm:ss z")}`
       );
@@ -383,21 +383,6 @@ export function startLowPillCheckCron() {
                 error.message
               );
             }
-          }
-        }
-      } catch (err) {
-        console.error("🚨 Error in low-pill check cron:", err.message);
-      }
-    },
-    {
-      timezone: "Asia/Karachi", // ensures it runs at 9 AM Pakistan time
-    }
-  );
-}
-
-/**
- * Cron Job — Prescription over (pill count = 0)
- * Runs daily at 10 AM UTC
  */
 export function startPrescriptionOverCron() {
   cron.schedule("0 10 * * *", async () => {

@@ -115,7 +115,7 @@ router.post("/sms/reply", async (req, res) => {
   if (req.body.FromState && stateTimezones[req.body.FromState]) {
     user.timezone = stateTimezones[req.body.FromState];
   } else {
-    user.timezone = "Asia/Karachi";
+    user.timezone = "America/New_York";
   }
 
   await user.save();
