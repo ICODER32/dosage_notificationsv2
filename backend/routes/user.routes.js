@@ -520,20 +520,20 @@ router.post("/sms/reply", async (req, res) => {
 
       case "ask_wake_time":
         if (!validateStrictTime(msg)) {
-          reply = "please enter correct time";
+          reply = "Please enter correct time e.g (7:00am)";
         } else if (validateTime(msg, "morning")) {
           user.wakeTime = parseTime(msg);
           reply =
             "Great! Now, what time do you usually go to sleep? (e.g., 10 PM)";
           user.flowStep = "ask_sleep_time";
         } else {
-          reply = "Please enter a valid morning time (e.g., 7 AM)";
+          reply = "Please enter correct time e.g (7:00am)";
         }
         break;
 
       case "ask_sleep_time":
         if (!validateStrictTime(msg)) {
-          reply = "please enter correct time";
+          reply = "Please enter correct time e.g (7:00pm)";
         } else {
           const parsed = parseTime(msg, "PM");
           if (parsed) {
