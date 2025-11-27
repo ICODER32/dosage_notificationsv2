@@ -339,9 +339,8 @@ router.post("/sms/reply", async (req, res) => {
             );
 
           const uniqueTimes = [...new Set(medTimes)];
-          return `${i + 1}. ${p.name} (Current times: ${
-            uniqueTimes.join(", ") || "not set"
-          })`;
+          return `${i + 1}. ${p.name} (Current times: ${uniqueTimes.join(", ") || "not set"
+            })`;
         })
         .join("\n");
 
@@ -520,7 +519,9 @@ router.post("/sms/reply", async (req, res) => {
         break;
 
       case "ask_wake_time":
-        if (validateTime(msg, "morning")) {
+        if (!validateStrictTime(msg)) {
+          reply = "please enter correct time";
+        } else if (validateTime(msg, "morning")) {
           user.wakeTime = parseTime(msg);
           reply =
             "Great! Now, what time do you usually go to sleep? (e.g., 10 PM)";
@@ -531,73 +532,77 @@ router.post("/sms/reply", async (req, res) => {
         break;
 
       case "ask_sleep_time":
-        const parsed = parseTime(msg, "PM");
-        if (parsed) {
-          user.sleepTime = parsed;
-
-          const enabledMeds = user.prescriptions.filter(
-            (p) => p.remindersEnabled
-          );
-
-          const allReminders = enabledMeds.flatMap((p) => {
-            return calculateReminderTimes(
-              user.wakeTime,
-              user.sleepTime,
-              p.instructions,
-              p.timesToTake,
-              p.name,
-              p.tracking.pillCount,
-              p.dosage
-            ).map((r) => ({
-              time: r.time,
-              prescriptionName: p.name,
-              pillCount: p.tracking.pillCount,
-              dosage: p.dosage,
-            }));
-          });
-
-          const uniqueReminders = Array.from(
-            new Map(
-              allReminders.map((r) => [`${r.prescriptionName}-${r.time}`, r])
-            ).values()
-          );
-
-          uniqueReminders.sort(
-            (a, b) => moment(a.time, "HH:mm") - moment(b.time, "HH:mm")
-          );
-
-          user.reminderTimes = uniqueReminders.map((r) => r.time);
-          user.medicationSchedule = generateMedicationSchedule(
-            uniqueReminders,
-            user.timezone
-          );
-          user.status = "active";
-          user.notificationsEnabled = true;
-
-          // Add this line to move to notification type selection
-          user.flowStep = "ask_notification_type";
-
-          // Group medications by time and format the message
-          const groupedByMed = {};
-          uniqueReminders.forEach((reminder) => {
-            const time12h = moment(reminder.time, "HH:mm").format("h:mm A");
-            if (!groupedByMed[reminder.prescriptionName]) {
-              groupedByMed[reminder.prescriptionName] = [];
-            }
-            groupedByMed[reminder.prescriptionName].push(time12h);
-          });
-
-          // Create the formatted message
-          let medicationList = [];
-          for (const [med, times] of Object.entries(groupedByMed)) {
-            medicationList.push(`${med} at ${times.join(", ")}`);
-          }
-
-          const formattedSchedule = medicationList.join("\n");
-
-          reply = `Thank you! Your reminders are set up for:\n${formattedSchedule}\n\nSelect your notification type:\n1. SMS notifications\n2. Phone call notifications\n\nReply with 1 or 2`;
+        if (!validateStrictTime(msg)) {
+          reply = "please enter correct time";
         } else {
-          reply = "Please enter a valid night time (e.g., 10 PM)";
+          const parsed = parseTime(msg, "PM");
+          if (parsed) {
+            user.sleepTime = parsed;
+
+            const enabledMeds = user.prescriptions.filter(
+              (p) => p.remindersEnabled
+            );
+
+            const allReminders = enabledMeds.flatMap((p) => {
+              return calculateReminderTimes(
+                user.wakeTime,
+                user.sleepTime,
+                p.instructions,
+                p.timesToTake,
+                p.name,
+                p.tracking.pillCount,
+                p.dosage
+              ).map((r) => ({
+                time: r.time,
+                prescriptionName: p.name,
+                pillCount: p.tracking.pillCount,
+                dosage: p.dosage,
+              }));
+            });
+
+            const uniqueReminders = Array.from(
+              new Map(
+                allReminders.map((r) => [`${r.prescriptionName}-${r.time}`, r])
+              ).values()
+            );
+
+            uniqueReminders.sort(
+              (a, b) => moment(a.time, "HH:mm") - moment(b.time, "HH:mm")
+            );
+
+            user.reminderTimes = uniqueReminders.map((r) => r.time);
+            user.medicationSchedule = generateMedicationSchedule(
+              uniqueReminders,
+              user.timezone
+            );
+            user.status = "active";
+            user.notificationsEnabled = true;
+
+            // Add this line to move to notification type selection
+            user.flowStep = "ask_notification_type";
+
+            // Group medications by time and format the message
+            const groupedByMed = {};
+            uniqueReminders.forEach((reminder) => {
+              const time12h = moment(reminder.time, "HH:mm").format("h:mm A");
+              if (!groupedByMed[reminder.prescriptionName]) {
+                groupedByMed[reminder.prescriptionName] = [];
+              }
+              groupedByMed[reminder.prescriptionName].push(time12h);
+            });
+
+            // Create the formatted message
+            let medicationList = [];
+            for (const [med, times] of Object.entries(groupedByMed)) {
+              medicationList.push(`${med} at ${times.join(", ")}`);
+            }
+
+            const formattedSchedule = medicationList.join("\n");
+
+            reply = `Thank you! Your reminders are set up for:\n${formattedSchedule}\n\nSelect your notification type:\n1. SMS notifications\n2. Phone call notifications\n\nReply with 1 or 2`;
+          } else {
+            reply = "Please enter a valid night time (e.g., 10 PM)";
+          }
         }
         break;
       case "ask_notification_type":
@@ -739,9 +744,8 @@ For more details and history, please visit your dashboard: ${process.env.DASHBOA
             return `${hour12}:${minutes} ${period}`;
           });
 
-          reply = `Times updated for ${
-            prescription.name
-          }! New times: ${formattedTimes.join(", ")}.`;
+          reply = `Times updated for ${prescription.name
+            }! New times: ${formattedTimes.join(", ")}.`;
 
           if (invalidTimes.length > 0) {
             reply += `\nNote: These times were invalid: ${invalidTimes.join(
@@ -789,6 +793,12 @@ async function sendMessage(phone, message) {
 function validateTimeAny(input) {
   const timeRegex = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i;
   return timeRegex.test(input);
+}
+
+// Strict validation: 12-hour format with colon and AM/PM
+function validateStrictTime(input) {
+  const timeRegex = /^(0?[1-9]|1[0-2]):[0-5][0-9]\s*(am|pm)$/i;
+  return timeRegex.test(input.trim());
 }
 
 // Validate time input (morning or night)
@@ -978,6 +988,7 @@ router.patch("/update/:id", async (req, res) => {
       "sideEffects",
       "initialCount",
       "remindersEnabled",
+      "reminderTimes",
     ];
 
     editableFields.forEach((field) => {
@@ -1004,6 +1015,13 @@ router.patch("/update/:id", async (req, res) => {
 
       // Use provided reminder times if available, otherwise recalculate
       let reminderTimes = updateData.reminderTimes;
+
+      // If not provided in update, check if prescription already has them saved
+      if (!reminderTimes || reminderTimes.length === 0) {
+        reminderTimes = prescription.reminderTimes;
+      }
+
+      // If still no times, calculate them
       if (!reminderTimes || reminderTimes.length === 0) {
         reminderTimes = calculateReminderTimes(
           wakeTime,
@@ -1015,6 +1033,9 @@ router.patch("/update/:id", async (req, res) => {
           prescription.dosage
         );
       }
+
+      // Ensure we save the calculated times to the prescription if they weren't there
+      prescription.reminderTimes = reminderTimes;
 
       // Generate schedule dynamically
       const reminderObjects = reminderTimes.map((time) => ({

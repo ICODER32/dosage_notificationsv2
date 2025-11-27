@@ -90,6 +90,7 @@ const prescriptionSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  reminderTimes: [String],
 });
 
 const userSchema = new mongoose.Schema({

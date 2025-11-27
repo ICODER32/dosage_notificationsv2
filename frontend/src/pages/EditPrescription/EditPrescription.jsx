@@ -113,24 +113,29 @@ export default function EditPrescription() {
       });
 
       // Store original reminder times
-      setOriginalReminderTimes(foundPrescription.reminderTimes || []);
+      // Prioritize the times saved directly on the prescription
+      const savedTimes = foundPrescription.reminderTimes || [];
 
-      // Get reminder times for this prescription
-      if (data.medicationSchedule) {
+      if (savedTimes.length > 0) {
+        setOriginalReminderTimes(savedTimes);
+        setReminderTimes(savedTimes.slice(0, foundPrescription.timesToTake));
+      } else if (data.medicationSchedule) {
+        // Fallback to calculating from schedule if no direct times saved
         const times = data.medicationSchedule
           .filter((item) => item.prescriptionName === foundPrescription.name)
           .map((item) => {
             const date = new Date(item.scheduledTime);
-            // Format to 12-hour format directly
+            // Format to HH:mm for consistency
             return date.toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",
-              hour12: true,
+              hour12: false,
             });
           });
 
         // Remove duplicates and take only the required number of times
         const uniqueTimes = [...new Set(times)];
+        setOriginalReminderTimes(uniqueTimes);
         setReminderTimes(uniqueTimes.slice(0, foundPrescription.timesToTake));
       }
     } catch (err) {
@@ -273,8 +278,7 @@ export default function EditPrescription() {
         }));
 
         toast.success(
-          `Reminders ${
-            updatedRemindersEnabled ? "resumed" : "paused"
+          `Reminders ${updatedRemindersEnabled ? "resumed" : "paused"
           } successfully!`
         );
       } catch (err) {
@@ -422,9 +426,8 @@ export default function EditPrescription() {
                 <button
                   type="button"
                   onClick={toggleReminders}
-                  className={`reminders-button ${
-                    formData.remindersEnabled ? "active" : "paused"
-                  } `}
+                  className={`reminders-button ${formData.remindersEnabled ? "active" : "paused"
+                    } `}
                 >
                   {formData.remindersEnabled ? (
                     <>
@@ -586,9 +589,8 @@ export default function EditPrescription() {
               <button
                 type="button"
                 onClick={toggleReminders}
-                className={` ${
-                  formData.remindersEnabled ? "" : ""
-                } reminder-btn `}
+                className={` ${formData.remindersEnabled ? "" : ""
+                  } reminder-btn `}
               >
                 {formData.remindersEnabled ? (
                   <>
