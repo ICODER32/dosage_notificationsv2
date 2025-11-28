@@ -184,37 +184,38 @@ export const generateMedicationSchedule = (
     }
   );
 
-  // === Conflict resolution (stagger reminders by 30 mins if same time) ===
-  const groupedByDayTime = {};
-  schedule.forEach((item) => {
-    const dt = DateTime.fromISO(item.scheduledTime).setZone(timezone);
-    const key = dt.toFormat("yyyy-MM-dd HH:mm");
-    if (!groupedByDayTime[key]) groupedByDayTime[key] = [];
-    groupedByDayTime[key].push(item);
-  });
+  // === Conflict resolution (Ripple Stagger) ===
+  return resolveScheduleConflicts(schedule, timezone);
+};
 
-  const adjustedSchedule = [];
+// === Ripple Stagger Logic ===
+export const resolveScheduleConflicts = (schedule, timezone) => {
+  if (!schedule || schedule.length === 0) return [];
 
-  Object.values(groupedByDayTime).forEach((group) => {
-    // Sort same-time reminders by name for consistent staggering
-    group.sort((a, b) => a.prescriptionName.localeCompare(b.prescriptionName));
-    group.forEach((item, i) => {
-      const dt = DateTime.fromISO(item.scheduledTime)
-        .plus({ minutes: i * 30 }) // stagger 30 minutes apart
-        .setZone(timezone);
-      adjustedSchedule.push({
-        ...item,
-        scheduledTime: dt.toISO(),
-        localTime: dt.toLocaleString(DateTime.DATETIME_MED),
-      });
-    });
-  });
-
-  // === Final sorting by actual time ===
-  adjustedSchedule.sort(
+  // 1. Sort by time
+  schedule.sort(
     (a, b) =>
       DateTime.fromISO(a.scheduledTime) - DateTime.fromISO(b.scheduledTime)
   );
 
-  return adjustedSchedule;
+  // 2. Ripple stagger
+  for (let i = 0; i < schedule.length - 1; i++) {
+    const current = schedule[i];
+    const next = schedule[i + 1];
+
+    const currentDt = DateTime.fromISO(current.scheduledTime).setZone(timezone);
+    const nextDt = DateTime.fromISO(next.scheduledTime).setZone(timezone);
+
+    const diffMinutes = nextDt.diff(currentDt, "minutes").minutes;
+
+    if (diffMinutes < 30) {
+      // Move next item to be exactly 30 mins after current
+      const newNextDt = currentDt.plus({ minutes: 30 });
+
+      next.scheduledTime = newNextDt.toISO();
+      next.localTime = newNextDt.toLocaleString(DateTime.DATETIME_MED);
+    }
+  }
+
+  return schedule;
 };

@@ -5,6 +5,7 @@ import twilio from "twilio";
 import {
   calculateReminderTimes,
   generateMedicationSchedule,
+  resolveScheduleConflicts,
 } from "../utils/scheduler.js";
 import cron from "node-cron";
 import moment from "moment";
@@ -731,6 +732,12 @@ For more details and history, please visit your dashboard: ${process.env.DASHBOA
               }
             }
           }
+
+          // === Apply Ripple Stagger to ensure 30-min gaps ===
+          user.medicationSchedule = resolveScheduleConflicts(
+            user.medicationSchedule,
+            userTimezone
+          );
 
           user.flowStep = "done";
           user.temp = {};
