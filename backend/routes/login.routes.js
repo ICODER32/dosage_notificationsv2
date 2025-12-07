@@ -20,11 +20,11 @@ router.post("/get-otp", async (req, res) => {
   try {
     // Send OTP via WhatsApp
     const otp = Math.floor(1000 + Math.random() * 9000); // Generate a random 4-digit OTP
-    await client.messages.create({
-      body: `Your OTP for CareTrack RX is: ${otp}`,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: `+${phoneNumber}`,
-    });
+    // await client.messages.create({
+    //   body: `Your OTP for CareTrack RX is: ${otp}`,
+    //   from: process.env.TWILIO_PHONE_NUMBER,
+    //   to: `+${phoneNumber}`,
+    // });
 
     // Store OTP in session or database (not implemented here)
 

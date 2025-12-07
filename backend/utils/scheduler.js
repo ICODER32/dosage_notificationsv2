@@ -1,6 +1,8 @@
 import { DateTime } from "luxon";
 
-// === Calculate reminder times ===
+// =========================================================
+// === FIXED REMINDER TIME CALCULATOR (UPDATED) =============
+// =========================================================
 export const calculateReminderTimes = (
   wakeTime,
   sleepTime,
@@ -11,73 +13,38 @@ export const calculateReminderTimes = (
   dosage
 ) => {
   const times = [];
-  const normalizedInstructions = instructions.toLowerCase();
 
-  // Parse times to minutes since midnight
   const [wakeHour, wakeMin] = wakeTime.split(":").map(Number);
   const [sleepHour, sleepMin] = sleepTime.split(":").map(Number);
   const wakeTotalMin = wakeHour * 60 + wakeMin;
   const sleepTotalMin = sleepHour * 60 + sleepMin;
 
-  const formatTime = (totalMinutes) => {
-    const hour = Math.floor(totalMinutes / 60) % 24;
-    const min = Math.floor(totalMinutes % 60);
-    return `${hour.toString().padStart(2, "0")}:${min
-      .toString()
-      .padStart(2, "0")}`;
+  const formatTime = (m) => {
+    const h = Math.floor(m / 60) % 24;
+    const mm = m % 60;
+    return `${h.toString().padStart(2, "0")}:${mm.toString().padStart(2, "0")}`;
   };
 
-  // Helper keywords
-  const isBeforeBed =
-    normalizedInstructions.includes("bed") ||
-    normalizedInstructions.includes("sleep");
-  const isWithBreakfast =
-    normalizedInstructions.includes("breakfast") ||
-    normalizedInstructions.includes("morning");
-  const isAfterMeal =
-    normalizedInstructions.includes("after meal") ||
-    normalizedInstructions.includes("after food");
-  const isBeforeMeal =
-    normalizedInstructions.includes("before meal") ||
-    normalizedInstructions.includes("before food");
-
-  // Single dose
+  // ---------------------------------------------------------
+  // === FREQUENCY = 1 → ALWAYS ONE TIME PER DAY ============
+  // ---------------------------------------------------------
   if (frequency === 1) {
-    let reminderMin;
-    if (isBeforeBed) {
-      reminderMin = sleepTotalMin - 60;
-    } else if (isWithBreakfast) {
-      reminderMin = wakeTotalMin + 60;
-    } else if (isAfterMeal || isBeforeMeal) {
-      reminderMin =
-        wakeTotalMin + Math.floor((sleepTotalMin - wakeTotalMin) / 2);
-    } else {
-      reminderMin = wakeTotalMin + 60;
-    }
-
+    const oneDose = wakeTotalMin + 60; // 1 hr after wake
     times.push({
       prescriptionName: name,
-      time: formatTime(reminderMin),
+      time: formatTime(oneDose),
       dosage,
       pillCount,
     });
     return times;
   }
 
-  // Two doses
+  // ---------------------------------------------------------
+  // === FREQUENCY = 2 → ALWAYS TWO FIXED TIMES =============
+  // ---------------------------------------------------------
   if (frequency === 2) {
-    let firstDose, secondDose;
-
-    if (isBeforeBed || isWithBreakfast) {
-      firstDose = wakeTotalMin + 60;
-      secondDose = sleepTotalMin - 60;
-    } else if (normalizedInstructions.includes("dinner")) {
-      firstDose = wakeTotalMin + 60;
-      secondDose = sleepTotalMin - 60;
-    } else {
-      firstDose = wakeTotalMin + 60;
-      secondDose = sleepTotalMin - 60;
-    }
+    const firstDose = wakeTotalMin + 60;      // 1 hr after wake
+    const secondDose = sleepTotalMin - 60;    // 1 hr before sleep
 
     times.push({
       prescriptionName: name,
@@ -85,36 +52,29 @@ export const calculateReminderTimes = (
       dosage,
       pillCount,
     });
+
     times.push({
       prescriptionName: name,
       time: formatTime(secondDose),
       dosage,
       pillCount,
     });
+
     return times;
   }
 
-  // Three or more doses
-  const buffer = 60;
-  let startTime = wakeTotalMin;
-  let endTime = sleepTotalMin;
+  // ---------------------------------------------------------
+  // === FREQUENCY >= 3 → evenly spaced ======================
+  // ---------------------------------------------------------
+  let start = wakeTotalMin + 60;
+  let end = sleepTotalMin - 60;
 
-  if (isWithBreakfast) startTime += 60;
-  if (isBeforeBed) endTime -= 60;
-  if (endTime <= startTime) endTime = startTime + 60 * frequency;
+  if (end <= start) end = start + 60 * frequency;
 
-  const timeRange = endTime - startTime;
-  const interval = timeRange / (frequency - 1);
+  const interval = (end - start) / (frequency - 1);
 
   for (let i = 0; i < frequency; i++) {
-    let doseTime = startTime + i * interval;
-
-    if (isBeforeBed && i === frequency - 1) {
-      doseTime = sleepTotalMin - 60;
-    } else if (isWithBreakfast && i === 0) {
-      doseTime = wakeTotalMin + 60;
-    }
-
+    const doseTime = start + i * interval;
     times.push({
       prescriptionName: name,
       time: formatTime(doseTime),
@@ -126,6 +86,10 @@ export const calculateReminderTimes = (
   return times;
 };
 
+
+// =========================================================
+// === GENERATE DAILY MEDICATION SCHEDULE ===================
+// =========================================================
 export const generateMedicationSchedule = (
   reminders,
   timezone,
@@ -134,86 +98,121 @@ export const generateMedicationSchedule = (
   const now = DateTime.now().setZone(timezone);
   const schedule = [];
 
-  // === Group reminders by prescription ===
-  const groupedByPrescription = reminders.reduce((acc, r) => {
+  // Group by prescription
+  const grouped = reminders.reduce((acc, r) => {
     const key = r.prescriptionId || r.prescriptionName;
     if (!acc[key]) acc[key] = [];
     acc[key].push(r);
     return acc;
   }, {});
 
-  Object.entries(groupedByPrescription).forEach(
-    ([prescriptionKey, reminderArray]) => {
-      const adjustedStart = DateTime.fromJSDate(startDate).setZone(timezone);
-      const today = adjustedStart.startOf("day");
+  Object.entries(grouped).forEach(([_, reminderGroup]) => {
+    const baseDate = DateTime.fromJSDate(startDate).setZone(timezone);
+    const today = baseDate.startOf("day");
 
-      // === Dynamic days based on available pills ===
-      const sampleReminder = reminderArray[0];
-      const { pillCount = 0, dosage = 1 } = sampleReminder;
-      const timesPerDay = reminderArray.length;
-      let daysToGenerate = Math.floor(pillCount / (dosage * timesPerDay));
-      if (daysToGenerate < 1 && pillCount > 0) daysToGenerate = 1; // Generate at least 1 day if pills exist, else 0
+    const sample = reminderGroup[0];
+    const pillCount = sample.pillCount || 0;
+    const dosage = sample.dosage || 1;
 
-      // === Generate schedule for each day & dose ===
-      for (let day = 0; day < daysToGenerate; day++) {
-        const currentDay = today.plus({ days: day });
+    const dosesPerDay = reminderGroup.length;
+    const pillsPerDay = dosage * dosesPerDay;
 
-        reminderArray.forEach((r) => {
-          const [hour, minute] = r.time.split(":").map(Number);
-          const scheduledTime = currentDay.set({
-            hour,
-            minute,
-            second: 0,
-            millisecond: 0,
+    // How many full days we can schedule
+    let daysToGenerate = Math.floor(pillCount / pillsPerDay);
+
+    // If pills don't last a full day, schedule partial day
+    const remaining = pillCount % pillsPerDay;
+    const needsPartialDay = remaining > 0;
+
+    // Full days
+    for (let d = 0; d < daysToGenerate; d++) {
+      const thisDay = today.plus({ days: d });
+
+      reminderGroup.forEach((r) => {
+        const [hour, minute] = r.time.split(":").map(Number);
+        let scheduled = thisDay.set({ hour, minute, second: 0, millisecond: 0 });
+
+        if (scheduled > now) {
+          schedule.push({
+            prescriptionName: r.prescriptionName,
+            prescriptionId: r.prescriptionId,
+            scheduledTime: scheduled.toISO(),
+            localTime: scheduled.toLocaleString(DateTime.DATETIME_MED),
+            dosage: r.dosage,
+            status: "pending",
+            reminderSent: false,
           });
-
-          // Only future reminders are added
-          if (scheduledTime > now) {
-            schedule.push({
-              prescriptionName: r.prescriptionName,
-              prescriptionId: r.prescriptionId,
-              scheduledTime: scheduledTime.toISO(),
-              localTime: scheduledTime.toLocaleString(DateTime.DATETIME_MED),
-              dosage: r.dosage,
-              status: "pending",
-              reminderSent: false,
-            });
-          }
-        });
-      }
+        }
+      });
     }
-  );
 
-  // === Conflict resolution (Ripple Stagger) ===
+    // Partial day (last day)
+    if (needsPartialDay) {
+      const lastDay = today.plus({ days: daysToGenerate });
+      let remainingPills = remaining;
+
+      reminderGroup.forEach((r) => {
+        if (remainingPills <= 0) return;
+
+        const [hour, minute] = r.time.split(":").map(Number);
+        let scheduled = lastDay.set({ hour, minute, second: 0, millisecond: 0 });
+
+        if (scheduled > now) {
+          schedule.push({
+            prescriptionName: r.prescriptionName,
+            prescriptionId: r.prescriptionId,
+            scheduledTime: scheduled.toISO(),
+            localTime: scheduled.toLocaleString(DateTime.DATETIME_MED),
+            dosage: r.dosage,
+            status: "pending",
+            reminderSent: false,
+          });
+        }
+
+        remainingPills -= dosage;
+      });
+    }
+  });
+
   return resolveScheduleConflicts(schedule, timezone);
 };
 
-// === Ripple Stagger Logic ===
+// =========================================================
+// === FIXED: RIPPLE CASCADE CONFLICT RESOLUTION ============
+// =========================================================
 export const resolveScheduleConflicts = (schedule, timezone) => {
   if (!schedule || schedule.length === 0) return [];
 
+  const parseDate = (d) =>
+    d instanceof Date
+      ? DateTime.fromJSDate(d).setZone(timezone)
+      : DateTime.fromISO(d).setZone(timezone);
+
   // 1. Sort by time
-  schedule.sort(
-    (a, b) =>
-      DateTime.fromISO(a.scheduledTime) - DateTime.fromISO(b.scheduledTime)
-  );
+  schedule.sort((a, b) => parseDate(a.scheduledTime) - parseDate(b.scheduledTime));
 
-  // 2. Ripple stagger
+  // 2. Cascade forward ripple stagger (every conflict is pushed)
   for (let i = 0; i < schedule.length - 1; i++) {
-    const current = schedule[i];
-    const next = schedule[i + 1];
+    let currentDt = parseDate(schedule[i].scheduledTime);
 
-    const currentDt = DateTime.fromISO(current.scheduledTime).setZone(timezone);
-    const nextDt = DateTime.fromISO(next.scheduledTime).setZone(timezone);
+    for (let j = i + 1; j < schedule.length; j++) {
+      const nextDt = parseDate(schedule[j].scheduledTime);
+      const diff = nextDt.diff(currentDt, "minutes").minutes;
 
-    const diffMinutes = nextDt.diff(currentDt, "minutes").minutes;
+      if (diff < 30) {
+        const newDt = currentDt.plus({ minutes: 30 });
 
-    if (diffMinutes < 30) {
-      // Move next item to be exactly 30 mins after current
-      const newNextDt = currentDt.plus({ minutes: 30 });
+        schedule[j].scheduledTime =
+          schedule[j].scheduledTime instanceof Date
+            ? newDt.toJSDate()
+            : newDt.toISO();
 
-      next.scheduledTime = newNextDt.toISO();
-      next.localTime = newNextDt.toLocaleString(DateTime.DATETIME_MED);
+        schedule[j].localTime = newDt.toLocaleString(DateTime.DATETIME_MED);
+
+        currentDt = newDt;
+      } else {
+        break;
+      }
     }
   }
 

@@ -127,8 +127,7 @@ export function startReminderCron() {
               // Only mark success if Twilio accepted call
               if (call && call.sid) {
                 console.log(
-                  `📞 Call placed successfully for ${
-                    user.phoneNumber
+                  `📞 Call placed successfully for ${user.phoneNumber
                   }, meds: ${meds.join(", ")}`
                 );
               }
@@ -359,7 +358,7 @@ export function startLowPillCheckCron() {
 
             const daysLeft = remainingPills / pillsPerDay;
 
-            if (daysLeft < 2 && remainingPills > 0) {
+            if (daysLeft <= 1 && remainingPills > 0) {
               lowPillPrescriptions.push({
                 name: prescription.name,
                 daysLeft: daysLeft.toFixed(1),
@@ -368,7 +367,7 @@ export function startLowPillCheckCron() {
           }
 
           if (lowPillPrescriptions.length > 0) {
-            const message = `⚠️ You have less than 2 days of pills left for:\n${lowPillPrescriptions
+            const message = `⚠️ You have 1 day or less of pills left for:\n${lowPillPrescriptions
               .map((m) => `• ${m.name} (${m.daysLeft} days left)`)
               .join(
                 "\n"
@@ -382,8 +381,8 @@ export function startLowPillCheckCron() {
                 `❌ Failed low-pill SMS for ${user.phoneNumber}:`,
                 error.message
               );
+            }
           }
-        }
         }
       } catch (err) {
         console.error("🚨 Error in low-pill check cron:", err.message);
@@ -425,7 +424,7 @@ export function startPrescriptionOverCron() {
         try {
           await sendSMS(user.phoneNumber, message);
           console.log(`📨 Prescription-over SMS sent to ${user.phoneNumber}`);
-          
+
           // Mark as notified
           zeroPillPrescriptions.forEach(p => p.finishedNotified = true);
           await user.save();

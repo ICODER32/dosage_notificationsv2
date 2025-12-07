@@ -177,13 +177,44 @@ const Dashboard = () => {
   };
 
   const getReminderTimes = (prescription) => {
-    if (!userData?.medicationSchedule) return [];
+    // Prioritize effective times from schedule (staggered)
+    if (
+      userData?.medicationSchedule &&
+      userData.medicationSchedule.length > 0
+    ) {
+      const sched = userData.medicationSchedule
+        .filter((item) => item.prescriptionName === prescription.name)
+        .sort((a, b) => new Date(a.scheduledTime) - new Date(b.scheduledTime));
 
-    const times = userData.medicationSchedule
-      .filter((item) => item.prescriptionName === prescription.name)
-      .map((item) => formatTime(item.scheduledTime));
+      if (sched.length > 0) {
+        const firstTime = new Date(sched[0].scheduledTime).getTime();
+        const windowEnd = firstTime + 24 * 60 * 60 * 1000;
 
-    return [...new Set(times)]; // remove duplicates
+        const times = sched
+          .filter((item) => new Date(item.scheduledTime).getTime() < windowEnd)
+          .map((item) => formatTime(item.scheduledTime));
+
+        return [...new Set(times)];
+      }
+    }
+
+    // Fallback to configured times if available
+    if (prescription.reminderTimes && prescription.reminderTimes.length > 0) {
+      return prescription.reminderTimes.map((t) => {
+        // Format HH:mm to h:mm A
+        const [hours, minutes] = t.split(":");
+        const date = new Date();
+        date.setHours(hours);
+        date.setMinutes(minutes);
+        return date.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+      });
+    }
+
+    return [];
   };
 
   const openDetailsModal = (prescription) => {
@@ -331,7 +362,7 @@ const Dashboard = () => {
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             {forWhoInputs[prescription._id]?.relation ===
-                            "myself"
+                              "myself"
                               ? "Your Name"
                               : "Person's Name"}
                           </label>
@@ -342,14 +373,13 @@ const Dashboard = () => {
                               handleNameChange(prescription._id, e.target.value)
                             }
                             required
-                            className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                              inputErrors[prescription._id]
-                                ? "border-red-500 focus:ring-red-500"
-                                : "border-gray-300 focus:ring-purple-500"
-                            }`}
+                            className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${inputErrors[prescription._id]
+                              ? "border-red-500 focus:ring-red-500"
+                              : "border-gray-300 focus:ring-purple-500"
+                              }`}
                             placeholder={
                               forWhoInputs[prescription._id]?.relation ===
-                              "myself"
+                                "myself"
                                 ? "Your full name"
                                 : "Enter full name"
                             }
@@ -377,9 +407,8 @@ const Dashboard = () => {
               <button
                 onClick={saveForWho}
                 disabled={saving}
-                className={`px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center ${
-                  saving ? "opacity-70 cursor-not-allowed" : ""
-                }`}
+                className={`px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center ${saving ? "opacity-70 cursor-not-allowed" : ""
+                  }`}
               >
                 {saving ? "Saving..." : "Save Information"}
               </button>
@@ -502,9 +531,8 @@ const Dashboard = () => {
               {myPrescriptions.map((prescription) => (
                 <div
                   key={prescription._id}
-                  className={`prescription-card ${
-                    prescription.remindersEnabled ? "active" : "paused"
-                  }`}
+                  className={`prescription-card ${prescription.remindersEnabled ? "active" : "paused"
+                    }`}
                 >
                   <div className="prescription-card-body">
                     <div className="prescription-card-header">
@@ -513,11 +541,10 @@ const Dashboard = () => {
                           {prescription.name}
                         </h3>
                         <div
-                          className={`prescription-card-activity ${
-                            prescription.remindersEnabled
-                              ? "status-green"
-                              : "status-yellow"
-                          }`}
+                          className={`prescription-card-activity ${prescription.remindersEnabled
+                            ? "status-green"
+                            : "status-yellow"
+                            }`}
                         >
                           {prescription.remindersEnabled ? "Active" : "Paused"}
                         </div>

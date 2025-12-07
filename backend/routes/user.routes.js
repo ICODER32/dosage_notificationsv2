@@ -331,21 +331,74 @@ router.post("/sms/reply", async (req, res) => {
       handled = true;
     } else {
       const userTimezone = user.timezone || "UTC";
-      const medList = enabledMeds
-        .map((p, i) => {
-          const medTimes = user.medicationSchedule
+      let needsSave = false;
+
+      const medList = enabledMeds.map((p, i) => {
+        let displayTimes = [];
+
+        // 1. Try to get effective times from schedule
+        if (user.medicationSchedule && user.medicationSchedule.length > 0) {
+          const sched = user.medicationSchedule
             .filter((item) => item.prescriptionName === p.name)
-            .map((item) =>
-              moment(item.scheduledTime).tz(userTimezone).format("h:mm A")
+            .sort(
+              (a, b) => new Date(a.scheduledTime) - new Date(b.scheduledTime)
             );
 
-          const uniqueTimes = [...new Set(medTimes)];
-          return `${i + 1}. ${p.name} (Current times: ${uniqueTimes.join(", ") || "not set"
-            })`;
-        })
-        .join("\n");
+          if (sched.length > 0) {
+            const firstTime = new Date(sched[0].scheduledTime).getTime();
+            const windowEnd = firstTime + 24 * 60 * 60 * 1000;
+            const effective = sched
+              .filter(
+                (item) => new Date(item.scheduledTime).getTime() < windowEnd
+              )
+              .map((item) =>
+                moment(item.scheduledTime).tz(userTimezone).format("h:mm A")
+              );
+            displayTimes = [...new Set(effective)];
+          }
+        }
 
-      reply = `Which pill would you like to set a custom time for?\nReply with a number:\n${medList}\n(Type the number of the pill you want to change.)`;
+        // 2. Fallback/Auto-repair logic (existing)
+        let configuredTimes = (p.reminderTimes || []).map((t) =>
+          moment(t, "HH:mm").format("h:mm A")
+        );
+
+        // Auto-repair: If too many times or empty
+        if (
+          configuredTimes.length === 0 ||
+          configuredTimes.length > p.timesToTake
+        ) {
+          const calculated = calculateReminderTimes(
+            user.wakeTime,
+            user.sleepTime,
+            p.instructions,
+            p.timesToTake,
+            p.name,
+            p.tracking.pillCount,
+            p.dosage
+          );
+          configuredTimes = calculated.map((r) =>
+            moment(r.time, "HH:mm").format("h:mm A")
+          );
+          // Save back to prescription
+          p.reminderTimes = calculated.map((r) => r.time);
+          needsSave = true;
+        }
+
+        // 3. Use effective times if found, else configured times
+        const finalTimes =
+          displayTimes.length > 0 ? displayTimes : configuredTimes;
+        const uniqueTimes = [...new Set(finalTimes)];
+
+        return `${i + 1}. ${p.name} (Current times: ${uniqueTimes.join(", ") || "not set"
+          })`;
+      });
+
+      if (needsSave) {
+        await user.save();
+      }
+
+      reply = `Which pill would you like to set a custom time for?\nReply with a number:\n${medList.join("\n")}\n(Type the number of the pill you want to change.)`;
       user.flowStep = "set_time_select_med";
       user.temp = {};
       await user.save();
@@ -545,7 +598,7 @@ router.post("/sms/reply", async (req, res) => {
             );
 
             const allReminders = enabledMeds.flatMap((p) => {
-              return calculateReminderTimes(
+              const reminders = calculateReminderTimes(
                 user.wakeTime,
                 user.sleepTime,
                 p.instructions,
@@ -553,7 +606,12 @@ router.post("/sms/reply", async (req, res) => {
                 p.name,
                 p.tracking.pillCount,
                 p.dosage
-              ).map((r) => ({
+              );
+
+              // Save calculated times to prescription
+              p.reminderTimes = reminders.map((r) => r.time);
+
+              return reminders.map((r) => ({
                 time: r.time,
                 prescriptionName: p.name,
                 pillCount: p.tracking.pillCount,
@@ -584,17 +642,39 @@ router.post("/sms/reply", async (req, res) => {
 
             // Group medications by time and format the message
             const groupedByMed = {};
-            uniqueReminders.forEach((reminder) => {
-              const time12h = moment(reminder.time, "HH:mm").format("h:mm A");
-              if (!groupedByMed[reminder.prescriptionName]) {
-                groupedByMed[reminder.prescriptionName] = [];
-              }
-              groupedByMed[reminder.prescriptionName].push(time12h);
-            });
+
+            // Use the staggered schedule to show actual times
+            // Fix: Only show the first day's schedule to avoid confusion if subsequent days differ
+            if (user.medicationSchedule.length > 0) {
+              const startDates = user.medicationSchedule.map(i => new Date(i.scheduledTime).getTime());
+              const minDate = Math.min(...startDates);
+              const windowEnd = minDate + 24 * 60 * 60 * 1000; // 24 hours from first item
+
+              user.medicationSchedule.forEach((item) => {
+                if (item.scheduledTime) {
+                  const itemTime = new Date(item.scheduledTime).getTime();
+
+                  if (itemTime < windowEnd) {
+                    const time12h = moment(item.scheduledTime)
+                      .tz(user.timezone)
+                      .format("h:mm A");
+
+                    if (!groupedByMed[item.prescriptionName]) {
+                      groupedByMed[item.prescriptionName] = new Set();
+                    }
+                    groupedByMed[item.prescriptionName].add(time12h);
+                  }
+                }
+              });
+            }
 
             // Create the formatted message
             let medicationList = [];
-            for (const [med, times] of Object.entries(groupedByMed)) {
+            for (const [med, timesSet] of Object.entries(groupedByMed)) {
+              // Sort times
+              const times = Array.from(timesSet).sort(
+                (a, b) => moment(a, "h:mm A") - moment(b, "h:mm A")
+              );
               medicationList.push(`${med} at ${times.join(", ")}`);
             }
 
@@ -642,11 +722,28 @@ For more details and history, please visit your dashboard: ${process.env.DASHBOA
           await user.save();
 
           // Get current times in user's timezone
-          const medTimes = user.medicationSchedule
-            .filter((item) => item.prescriptionName === selectedMed.name)
-            .map((item) =>
-              moment(item.scheduledTime).tz(user.timezone).format("h:mm A")
+          let medTimes = (selectedMed.reminderTimes || []).map((t) =>
+            moment(t, "HH:mm").format("h:mm A")
+          );
+
+          // Auto-repair: If too many times or empty
+          if (medTimes.length === 0 || medTimes.length > selectedMed.timesToTake) {
+            const calculated = calculateReminderTimes(
+              user.wakeTime,
+              user.sleepTime,
+              selectedMed.instructions,
+              selectedMed.timesToTake,
+              selectedMed.name,
+              selectedMed.tracking.pillCount,
+              selectedMed.dosage
             );
+            medTimes = calculated.map((r) =>
+              moment(r.time, "HH:mm").format("h:mm A")
+            );
+            // Save back to prescription
+            selectedMed.reminderTimes = calculated.map((r) => r.time);
+            await user.save();
+          }
 
           const uniqueTimes = [...new Set(medTimes)];
           const currentTimes = uniqueTimes.length
@@ -695,8 +792,8 @@ For more details and history, please visit your dashboard: ${process.env.DASHBOA
           // Get the current times for this medication from the prescription
           const currentTimes = prescription.reminderTimes || [];
 
-          // Merge the new times with existing times (remove duplicates)
-          const updatedTimes = [...new Set([...currentTimes, ...validTimes])];
+          // Replace with new times (remove duplicates if user entered same time twice)
+          const updatedTimes = [...new Set(validTimes)];
 
           // Update the prescription's reminder times
           prescription.reminderTimes = updatedTimes;
@@ -784,11 +881,11 @@ For more details and history, please visit your dashboard: ${process.env.DASHBOA
 // Helper function to send messages
 async function sendMessage(phone, message) {
   try {
-    await client.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: `+${phone}`, // Use SMS format if needed
-    });
+    // await client.messages.create({
+    //   body: message,
+    //   from: process.env.TWILIO_PHONE_NUMBER,
+    //   to: `+${phone}`, // Use SMS format if needed
+    // });
     console.log(message);
     console.log(`Message sent to ${phone}: ${message}`);
   } catch (error) {

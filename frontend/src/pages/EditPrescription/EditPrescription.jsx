@@ -113,30 +113,45 @@ export default function EditPrescription() {
       });
 
       // Store original reminder times
-      // Prioritize the times saved directly on the prescription
+      // Try to get effective times from schedule first (staggered times)
+      let effectiveTimes = [];
+      if (data.medicationSchedule && data.medicationSchedule.length > 0) {
+        const sched = data.medicationSchedule
+          .filter((item) => item.prescriptionName === foundPrescription.name)
+          .sort(
+            (a, b) => new Date(a.scheduledTime) - new Date(b.scheduledTime)
+          );
+
+        if (sched.length > 0) {
+          const firstTime = new Date(sched[0].scheduledTime).getTime();
+          const windowEnd = firstTime + 24 * 60 * 60 * 1000;
+
+          effectiveTimes = sched
+            .filter(
+              (item) => new Date(item.scheduledTime).getTime() < windowEnd
+            )
+            .map((item) => {
+              const date = new Date(item.scheduledTime);
+              return date.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              });
+            });
+          effectiveTimes = [...new Set(effectiveTimes)];
+        }
+      }
+
       const savedTimes = foundPrescription.reminderTimes || [];
 
-      if (savedTimes.length > 0) {
-        setOriginalReminderTimes(savedTimes);
-        setReminderTimes(savedTimes.slice(0, foundPrescription.timesToTake));
-      } else if (data.medicationSchedule) {
-        // Fallback to calculating from schedule if no direct times saved
-        const times = data.medicationSchedule
-          .filter((item) => item.prescriptionName === foundPrescription.name)
-          .map((item) => {
-            const date = new Date(item.scheduledTime);
-            // Format to HH:mm for consistency
-            return date.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            });
-          });
+      // Use effective times if available, otherwise saved times
+      // This ensures user sees the ACTUAL scheduled time (e.g. 8:30) not just the base time (8:00)
+      const finalTimes =
+        effectiveTimes.length > 0 ? effectiveTimes : savedTimes;
 
-        // Remove duplicates and take only the required number of times
-        const uniqueTimes = [...new Set(times)];
-        setOriginalReminderTimes(uniqueTimes);
-        setReminderTimes(uniqueTimes.slice(0, foundPrescription.timesToTake));
+      if (finalTimes.length > 0) {
+        setOriginalReminderTimes(finalTimes);
+        setReminderTimes(finalTimes.slice(0, foundPrescription.timesToTake));
       }
     } catch (err) {
       setError(err.message);
@@ -184,10 +199,8 @@ export default function EditPrescription() {
         formatTimeTo24Hour(time)
       );
 
-      // Merge with original times and remove duplicates
-      const finalTimes = [
-        ...new Set([...originalReminderTimes, ...updatedTimes]),
-      ];
+      // Use updated times directly
+      const finalTimes = [...new Set(updatedTimes)];
 
       const response = await fetch(`/api/user/update/${id}`, {
         method: "PATCH",
