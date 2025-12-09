@@ -33,9 +33,11 @@ router.post("/get-otp", async (req, res) => {
     // Alternatively, you can save it in the database
     const user = await User.findOneAndUpdate(
       { phoneNumber },
-      { otp }, // Save OTP in user document
-      { timezone: req.body.timezone }, // Save timezone
-      { new: true, upsert: true } // Create user if not exists
+      {
+        otp,
+        timezone: req.body.timezone
+      }, // Combined update object
+      { new: true, upsert: true } // Options
     );
     if (!user) {
       return res.status(404).json({ message: "User not found" });

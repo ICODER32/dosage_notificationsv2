@@ -1168,7 +1168,13 @@ router.patch("/update/:id", async (req, res) => {
       );
     }
 
-    // 5️⃣ Mark fields as modified for Mongoose
+    // 5️⃣ Re-run global conflict resolution (ripple stagger)
+    user.medicationSchedule = resolveScheduleConflicts(
+      user.medicationSchedule,
+      user.timezone
+    );
+
+    // 6️⃣ Mark fields as modified for Mongoose
     user.markModified("prescriptions");
     user.markModified("medicationSchedule");
 
