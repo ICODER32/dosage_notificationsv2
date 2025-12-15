@@ -346,6 +346,31 @@ export default function EditPrescription() {
     );
   }
 
+  const getMedicationStats = (prescriptionName) => {
+    if (!userData?.medicationSchedule)
+      return { taken: 0, skipped: 0, missed: 0 };
+
+    const taken = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "taken"
+    ).length;
+
+    const skipped = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "skipped"
+    ).length;
+
+    const missed = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "missed"
+    ).length;
+
+    return { taken, skipped, missed };
+  };
+
+  // Calculate stats
+  const { taken, skipped, missed } = prescription ? getMedicationStats(prescription.name) : { taken: 0, skipped: 0, missed: 0 };
+
   return (
     <div className="editing-prescription-container custom-container">
       <div className="page-header">
@@ -548,16 +573,22 @@ export default function EditPrescription() {
               <div className="stats taken">
                 <p className="">Taken</p>
                 <p className="value">
-                  {prescription.initialCount - prescription.tracking.pillCount}
+                  {taken}
                 </p>
               </div>
               <div className="stats total">
-                <p className="">Total Count</p>
+                <p className="">Remaining</p>
                 <p className="value">{prescription.tracking.pillCount}</p>
+              </div>
+              <div className="stats missed">
+                <p className="">Missed</p>
+                <p className="value">
+                  {missed}
+                </p>
               </div>
               <div className="stats skipped">
                 <p className="">Skipped</p>
-                <p className="value">{prescription.tracking.skippedCount}</p>
+                <p className="value">{skipped}</p>
               </div>
             </div>
 

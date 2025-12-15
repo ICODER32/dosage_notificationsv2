@@ -350,6 +350,87 @@ function scheduleNightlyRefresh() {
   });
 }
 
+export async function checkLowPills() {
+  const now = moment.utc();
+  console.log(
+    `🧾 Low-pill check running at ${now.format("YYYY-MM-DD HH:mm:ss z")}`
+  );
+
+  try {
+    const users = await User.find({
+      status: "active",
+      notificationsEnabled: true,
+    });
+
+    for (const user of users) {
+      if (!user.prescriptions || user.prescriptions.length === 0) continue;
+
+      const lowPillPrescriptions = [];
+
+      for (const prescription of user.prescriptions) {
+        const totalPills = prescription.initialCount || 0;
+        const timesToTake = prescription.timesToTake || 1;
+        const dosage = prescription.dosage || 1;
+
+        // Each day consumes dosage * timesToTake pills
+        const pillsPerDay = dosage * timesToTake;
+
+        // If you’re tracking remaining pills dynamically, replace this with prescription.tracking.remainingCount
+        const remainingPills =
+          prescription.tracking?.pillCount ?? totalPills;
+
+        if (!remainingPills || remainingPills <= 0) continue;
+
+        // Check if there are any pending schedule items for this prescription
+        const hasPendingSchedule = user.medicationSchedule.some(
+          (item) =>
+            item.prescriptionName === prescription.name &&
+            item.status === "pending"
+        );
+
+        const daysLeft = remainingPills / pillsPerDay;
+
+        // Trigger if:
+        // 1. Days left is <= 1 (original logic)
+        // 2. OR schedule is exhausted (no pending items) but we still have pills (tracking issue or missed doses)
+        if ((daysLeft <= 1 || !hasPendingSchedule) && remainingPills > 0) {
+          lowPillPrescriptions.push({
+            name: prescription.name,
+            daysLeft: daysLeft.toFixed(1),
+            reason: !hasPendingSchedule ? "schedule_exhausted" : "low_pills",
+          });
+        }
+      }
+
+      if (lowPillPrescriptions.length > 0) {
+        const message = `⚠️ You have 1 day or less of pills left OR your schedule is finished for:\n${lowPillPrescriptions
+          .map(
+            (m) =>
+              `• ${m.name} (${m.reason === "schedule_exhausted"
+                ? "Schedule ended, Refill required"
+                : `${m.daysLeft} days left`
+              })`
+          )
+          .join(
+            "\n"
+          )}\n\nPlease arrange a refill soon.\nThank you for using CareTrackRx!`;
+
+        try {
+          await sendSMS(user.phoneNumber, message);
+          console.log(`💊 Low-pill/Refill reminder sent to ${user.phoneNumber}`);
+        } catch (error) {
+          console.error(
+            `❌ Failed low-pill SMS for ${user.phoneNumber}:`,
+            error.message
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.error("🚨 Error in low-pill check cron:", err.message);
+  }
+}
+
 /**
  * Cron Job — Low-pill reminder (less than 2 days left)
  * Runs daily at 9 AM UTC
@@ -358,69 +439,7 @@ export function startLowPillCheckCron() {
   // Runs every day at 9 AM Pakistan time
   cron.schedule(
     "0 14 * * *",
-    async () => {
-      const now = moment.utc();
-      console.log(
-        `🧾 Low-pill check running at ${now.format("YYYY-MM-DD HH:mm:ss z")}`
-      );
-
-      try {
-        const users = await User.find({
-          status: "active",
-          notificationsEnabled: true,
-        });
-
-        for (const user of users) {
-          if (!user.prescriptions || user.prescriptions.length === 0) continue;
-
-          const lowPillPrescriptions = [];
-
-          for (const prescription of user.prescriptions) {
-            const totalPills = prescription.initialCount || 0;
-            const timesToTake = prescription.timesToTake || 1;
-            const dosage = prescription.dosage || 1;
-
-            // Each day consumes dosage * timesToTake pills
-            const pillsPerDay = dosage * timesToTake;
-
-            // If you’re tracking remaining pills dynamically, replace this with prescription.tracking.remainingCount
-            const remainingPills =
-              prescription.tracking?.pillCount ?? totalPills;
-
-            if (!remainingPills || remainingPills <= 0) continue;
-
-            const daysLeft = remainingPills / pillsPerDay;
-
-            if (daysLeft <= 1 && remainingPills > 0) {
-              lowPillPrescriptions.push({
-                name: prescription.name,
-                daysLeft: daysLeft.toFixed(1),
-              });
-            }
-          }
-
-          if (lowPillPrescriptions.length > 0) {
-            const message = `⚠️ You have 1 day or less of pills left for:\n${lowPillPrescriptions
-              .map((m) => `• ${m.name} (${m.daysLeft} days left)`)
-              .join(
-                "\n"
-              )}\n\nPlease arrange a refill soon.\nThank you for using CareTrackRx!`;
-
-            try {
-              await sendSMS(user.phoneNumber, message);
-              console.log(`💊 Low-pill reminder sent to ${user.phoneNumber}`);
-            } catch (error) {
-              console.error(
-                `❌ Failed low-pill SMS for ${user.phoneNumber}:`,
-                error.message
-              );
-            }
-          }
-        }
-      } catch (err) {
-        console.error("🚨 Error in low-pill check cron:", err.message);
-      }
-    }
+    checkLowPills
   );
 }
 

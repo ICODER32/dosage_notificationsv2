@@ -168,9 +168,8 @@ export default function RelativeMedication() {
           {data.prescriptions.map((prescription) => (
             <div
               key={prescription._id}
-              className={`relative-info-box ${
-                prescription.remindersEnabled ? "green" : "yellow"
-              }`}
+              className={`relative-info-box ${prescription.remindersEnabled ? "green" : "yellow"
+                }`}
             >
               <div className="relative-info-box-header">
                 <div>
@@ -178,9 +177,8 @@ export default function RelativeMedication() {
                   <div className="relative-info-box-subheader">
                     <span className="status who">{prescription.forWho}</span>
                     <span
-                      className={`status ${
-                        prescription.remindersEnabled ? "green" : "yellow"
-                      }`}
+                      className={`status ${prescription.remindersEnabled ? "green" : "yellow"
+                        }`}
                     >
                       {prescription.remindersEnabled ? "Active" : "Paused"}
                     </span>
@@ -277,21 +275,24 @@ export default function RelativeMedication() {
                     </div>
                   </div>
 
-                  {/* ✅ Stats section now uses helper */}
                   <div className="stats-container">
                     <div className="stat-box stat-green">
                       <p className="label">Taken</p>
                       <p className="stat-value">{taken}</p>
                     </div>
                     <div className="stat-box stat-yellow">
-                      <p className="label">Total</p>
+                      <p className="label">Remaining</p>
                       <p className="stat-value">
-                        {selectedPrescription.initialCount}
+                        {selectedPrescription.tracking.pillCount}
                       </p>
                     </div>
                     <div className="stat-box stat-red">
                       <p className="label">Missed</p>
                       <p className="stat-value">{missed}</p>
+                    </div>
+                    <div className="stat-box stat-red">
+                      <p className="label">Skipped</p>
+                      <p className="stat-value">{skipped}</p>
                     </div>
                   </div>
 

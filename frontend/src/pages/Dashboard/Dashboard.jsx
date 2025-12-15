@@ -478,10 +478,9 @@ const Dashboard = () => {
                         <p className="stat-value">{taken}</p>
                       </div>
                       <div className="stat-box stat-yellow">
-                        <p className="label">Total</p>
+                        <p className="label">Remaining</p>
                         <p className="stat-value">
-                          {selectedPrescription.initialCount -
-                            selectedPrescription.tracking.skippedCount}
+                          {selectedPrescription.tracking.pillCount}
                         </p>
                       </div>
                       <div className="stat-box stat-red">
@@ -491,7 +490,7 @@ const Dashboard = () => {
                       <div className="stat-box stat-red">
                         <p className="label">Skipped</p>
                         <p className="stat-value">
-                          {selectedPrescription.tracking.skippedCount}
+                          {skipped}
                         </p>
                       </div>
                     </div>

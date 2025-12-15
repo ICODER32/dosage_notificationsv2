@@ -1,0 +1,56 @@
+
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+import User from "./models/user.model.js";
+import { startLowPillCheckCron } from "./cron-jobs/cronScheduler.js";
+import cron from "node-cron";
+
+dotenv.config();
+
+// MOCK sendSMS to intercept output
+// We can't easily mock the internal sendSMS of the module without dependency injection or mocking library.
+// For this quick script, we will just observe the console output because the code calls console.log.
+// However, to be more robust, we can overwrite the console.log/error temporarily?
+// No, the user will see the output.
+// Let's just create the user and run the function. The function is a cron scheduler.
+// We need to extract the logic or just run the scheduled task?
+// `startLowPillCheckCron` schedules it. It doesn't run it immediately.
+// We can modify the script to import the logic if it was exported, but it's not.
+// OR we can just use `cron.schedule` mock?
+// Actually `startLowPillCheckCron` exports the function that schedules it.
+// If I want to run the logic *now*, I can't easily access the callback.
+//
+// WAIT! I can modify `cronScheduler.js` to export the *callback* for testing purposes?
+// Or I can copy-paste the logic into the test script? No, that defeats the purpose of testing *the file*.
+//
+// BETTER APPROACH:
+// The `startLowPillCheckCron` function calls `cron.schedule("...", async () => { ... })`.
+// I can mock `cron.schedule` before importing `cronScheduler.js`.
+// But `cronScheduler.js` imports `cron`. ES modules are read-only bindings.
+//
+// Alternative:
+// I can rely on the fact that I just want to verify the logic *conceptually* or I can make the inner function exportable.
+// Let's make the inner function exportable in `cronScheduler.js`?
+// That involves another edit.
+//
+// Simpler: Just read the file, extract the inner function string, eval it? Too risky/messy.
+//
+// Best approach given constraints:
+// Use a test library approach where I mock `node-cron`.
+// But I don't have a test runner set up for this specific ad-hoc test.
+//
+// Let's just edit `cronScheduler.js` slightly to export the inner logic?
+// The user approved the plan which said "Run the logic (extracted from the proposed change)".
+// So I will create a script that DUPLICATES the logic for verification?
+// No, that tests the duplicate, not the actual code.
+//
+// Let's try to mock `node-cron`.
+// Since I use `import cron from "node-cron"`, I can't easily mock it unless I use a loader or something.
+//
+// HACK: I will temporarily modify `cronScheduler.js` to export the inner function `checkLowPills`.
+// 1. Refactor `cronScheduler.js` to extract `checkLowPills` function.
+// 2. Export it.
+// 3. Import it in test script.
+//
+// This is actually cleaner code anyway.
+// Let's do that refactor.
