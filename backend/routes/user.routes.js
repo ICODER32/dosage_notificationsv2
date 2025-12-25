@@ -10,6 +10,7 @@ import cron from "node-cron";
 import moment from "moment";
 import { DateTime } from "luxon";
 import momenttimezone from "moment-timezone";
+import fs from "fs";
 
 configDotenv();
 const router = express.Router();
@@ -37,6 +38,20 @@ cron.schedule("0 1 * * *", async () => {
 
 // SMS Reply Handler
 router.post("/sms/reply", async (req, res) => {
+  console.log("Received SMS reply:", req.body);
+  // write logs in file
+  const logMessage = `Received SMS reply: ${JSON.stringify(req.body)}\n`;
+  // if file is not there create first
+  if (!fs.existsSync("sms-logs.txt")) {
+    fs.writeFileSync("sms-logs.txt", "");
+  }
+  // append log message
+
+  fs.appendFile("sms-logs.txt", logMessage, (err) => {
+    if (err) {
+      console.error("Error writing to log file:", err);
+    }
+  });
   const from = req.body.From;
   const msg = req.body.Body?.trim();
   console.log(`Received message from ${from}: ${msg}`);
@@ -256,9 +271,8 @@ router.post("/sms/reply", async (req, res) => {
             );
 
           const uniqueTimes = [...new Set(medTimes)];
-          return `${i + 1}. ${p.name} (Current times: ${
-            uniqueTimes.join(", ") || "not set"
-          })`;
+          return `${i + 1}. ${p.name} (Current times: ${uniqueTimes.join(", ") || "not set"
+            })`;
         })
         .join("\n");
 
@@ -643,9 +657,8 @@ router.post("/sms/reply", async (req, res) => {
             return `${hour12}:${minutes} ${period}`;
           });
 
-          reply = `Times updated for ${
-            prescription.name
-          }! New times: ${formattedTimes.join(", ")}.`;
+          reply = `Times updated for ${prescription.name
+            }! New times: ${formattedTimes.join(", ")}.`;
 
           if (invalidTimes.length > 0) {
             reply += `\nNote: These times were invalid: ${invalidTimes.join(
