@@ -14,6 +14,11 @@ const countryCodes = [
     flag: "🇵🇰",
     name: "Pakistan",
   },
+  {
+    code: "+49",
+    name: "Germany",
+    flag: "🇩🇪",
+  },
 ];
 
 const LoginPage = () => {
@@ -36,6 +41,7 @@ const LoginPage = () => {
 
   const handlePhoneSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
     setError("");
 
@@ -70,6 +76,7 @@ const LoginPage = () => {
 
   const handleOtpSubmit = async (e) => {
     e.preventDefault();
+    if (isLoading) return;
     const otpCode = otp.join("");
 
     if (otpCode.length !== 4) {
@@ -121,6 +128,23 @@ const LoginPage = () => {
       setIsLoading(false);
     }
   };
+  const handleOtpPaste = (e) => {
+    const pasted = (e.clipboardData.getData("text") || "")
+      .replace(/\D/g, "")
+      .slice(0, 4);
+    if (pasted.length) {
+      const arr = pasted.split("");
+      setOtp([arr[0] || "", arr[1] || "", arr[2] || "", arr[3] || ""]);
+      const nextIndex = Math.min(pasted.length, 3);
+      setTimeout(() => document.getElementById(`otp-${nextIndex}`).focus(), 0);
+      e.preventDefault();
+    }
+  };
+  const handleOtpKeyDown = (e, index) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      document.getElementById(`otp-${index - 1}`).focus();
+    }
+  };
 
   return (
     <div className="login-page-container custom-container">
@@ -137,6 +161,7 @@ const LoginPage = () => {
               <div className="phone-input-group">
                 <select
                   value={selectedCountry.code}
+                  disabled={isLoading}
                   onChange={(e) => {
                     const country = countryCodes.find(
                       (c) => c.code === e.target.value
@@ -157,6 +182,9 @@ const LoginPage = () => {
                 {/* keyboard type numeric */}
                 <input
                   type="tel"
+                  autoComplete="tel"
+                  maxLength={15}
+                  disabled={isLoading}
                   inputMode="numeric"
                   placeholder="Enter your phone number"
                   className="phone-input"
@@ -198,6 +226,10 @@ const LoginPage = () => {
                     onChange={(e) => handleOtpChange(e, index)}
                     className="otp-input"
                     autoFocus={index === 0}
+                    autoComplete="one-time-code"
+                    disabled={isLoading}
+                    onKeyDown={handleOtpKeyDown}
+                    onPaste={handleOtpPaste}
                   />
                 ))}
               </div>

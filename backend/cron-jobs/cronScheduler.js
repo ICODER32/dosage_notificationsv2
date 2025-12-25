@@ -4,29 +4,33 @@ import User from "../models/user.model.js";
 import twilio from "twilio";
 import dotenv from "dotenv";
 import { Router } from "express";
+import mongoose from "mongoose";
 dotenv.config();
+import {
+  calculateReminderTimes,
+  generateMedicationSchedule,
+} from "../utils/scheduler.js";
 
 const client = twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN
 );
 
-// Create router for call handling endpoints
+// Router for call handling
 const callRouter = Router();
 
 // Helper function to make interactive phone calls
-async function makeInteractiveCall(phoneNumber, notificationId) {
+export async function makeInteractiveCall(phoneNumber, notificationId) {
   try {
     const call = await client.calls.create({
-      url: `https://31044bfef1fe.ngrok-free.app/api/calls/handle?notificationId=${notificationId}`,
+      url: `http://18.218.16.247/api/calls/handle?notificationId=${notificationId}`,
       to: `+${phoneNumber}`,
       from: process.env.TWILIO_PHONE_NUMBER,
     });
-    console.log(`Interactive call initiated to ${phoneNumber}: ${call.sid}`);
-    return call;
+    return call; // contains call.sid if accepted
   } catch (error) {
-    console.error(`Error making call to ${phoneNumber}:`, error);
-    throw error;
+    console.error(`❌ Error making call to ${phoneNumber}:`, error.message);
+    throw new Error("CALL_NOT_PLACED"); // only trigger SMS fallback if not accepted
   }
 }
 
@@ -38,108 +42,155 @@ async function sendSMS(phoneNumber, message) {
       from: process.env.TWILIO_PHONE_NUMBER,
       to: `+${phoneNumber}`,
     });
-    console.log(`SMS sent to ${phoneNumber}: ${sms.sid}`);
+    console.log(message);
+    console.log(`💬 SMS sent to ${phoneNumber}: ${sms.sid}`);
     return sms;
   } catch (error) {
-    console.error(`Error sending SMS to ${phoneNumber}:`, error);
+    console.error(`❌ Error sending SMS to ${phoneNumber}:`, error);
     throw error;
   }
 }
 
+/**
+ * Cron Job — Send reminders
+ * Runs every minute and sends per-medication calls/SMS
+ */
 export function startReminderCron() {
-  cron.schedule("*/1 * * * *", async () => {
+  cron.schedule("* * * * *", async () => {
     const now = moment.utc();
-    console.log(
-      `⏰ Starting reminder check at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
-    );
 
     try {
-      const activeUsers = await User.find({
-        status: "active",
-        notificationsEnabled: true,
-      });
+      const users = await User.find({ notificationsEnabled: true });
 
-      for (const user of activeUsers) {
-        try {
-          const userTimezone = user.timezone || "UTC";
+      for (const user of users) {
+        const userTimezone = user.timezone || "UTC";
 
-          // Find due reminders that haven't been processed
-          const dueReminders = user.medicationSchedule.filter((schedule) => {
-            if (schedule.status !== "pending") return false;
-            if (schedule.remainderSent) return false;
+        // Filter due reminders
+        const dueReminders = user.medicationSchedule.filter(
+          (r) =>
+            r.status === "pending" &&
+            !r.reminderSent &&
+            moment.utc(r.scheduledTime).isSame(now, "minute")
+        );
 
-            const scheduledTime = moment.utc(schedule.scheduledTime);
-            const timeDiff = Math.abs(scheduledTime.diff(now, "minutes"));
-            return timeDiff <= 2; // Within 2-minute window
-          });
+        if (dueReminders.length === 0) continue;
 
-          if (dueReminders.length === 0) continue;
+        // === group reminders by scheduled time ===
+        const groupedReminders = dueReminders.reduce((acc, reminder) => {
+          const timeKey = moment.utc(reminder.scheduledTime).format(); // ISO minute key
+          if (!acc[timeKey]) acc[timeKey] = [];
+          acc[timeKey].push(reminder);
+          return acc;
+        }, {});
 
-          // Create notification with schedule IDs
-          const scheduleIds = dueReminders.map((r) => r._id);
-          const uniqueMeds = [
-            ...new Set(dueReminders.map((r) => r.prescriptionName)),
-          ];
+        // Process each group (time slot)
+        for (const [timeKey, remindersAtSameTime] of Object.entries(
+          groupedReminders
+        )) {
+          const scheduleIds = remindersAtSameTime.map((r) => r._id);
+          const meds = remindersAtSameTime.map((r) => r.prescriptionName);
 
-          // Format message
-          let message = `CareTrackRX Reminder\n\n💊 It's time to take:\n`;
-          dueReminders.forEach((reminder) => {
-            const timeStr = moment
-              .utc(reminder.scheduledTime)
-              .tz(userTimezone)
-              .format("h:mm A");
-            message += `\n• ${reminder.prescriptionName} at ${timeStr}`;
-          });
-          message += `\n\nReply:\nD - Taken\nS - Skip`;
+          const timeStr = moment
+            .utc(remindersAtSameTime[0].scheduledTime)
+            .tz(userTimezone)
+            .format("h:mm A");
 
-          // Create notification record first to get its ID
+          // Build single message
+          const message = `It's time to take your medications:\n${meds
+            .map((m) => `• ${m} at ${timeStr}`)
+            .join(
+              "\n"
+            )}\n\nReply:\nD - if taken\nS - if skipped\n\nThank you for using CareTrackRx.`;
+
+          // Push single notification
           const notification = {
             sentAt: now.toDate(),
-            message: `Reminder for ${uniqueMeds.join(", ")}`,
+            message: `Reminder for ${meds.join(", ")}`,
             status: "pending",
-            medications: uniqueMeds,
+            medications: meds,
             scheduleIds,
             resends: 0,
             notificationType: user.notificationType || "sms",
           };
 
-          user.notificationHistory.push(notification);
-          await user.save();
+          // === Send notification IMPERATIVELY first ===
+          // If this fails, we won't mark as sent in DB, so it retries.
+          let callSid = null;
+          let smsSid = null;
+          let sentSuccessfully = false;
 
-          // Get the notification ID that was just created
-          const notificationId = user.notificationHistory.slice(-1)[0]._id;
-
-          // Send notification based on user preference
           if (user.notificationType === "call") {
+            // We need an ID for the callbacks/interactions, even if not yet saved. 
+            // Ideally we generate specific ID or let Mongo do it. 
+            // For simplicity, we can let the notification ID be generated by push, 
+            // but we are doing atomic update. 
+            // Let's generate a temporary ID or just rely on atomic update returning it? 
+            // No, standard is to just send. If we need ID for call URL, 
+            // we might need to generate ObjectId client-side or use a two-step if strictly needed.
+            // However, makeInteractiveCall uses notificationId in URL.
+            // So we must generate it.
+
+            // In Mongoose subdocs have _ids by default. 
+            // But here we are constructing a plain object to push.
+            // Let's manually assign an _id so we can use it in the call URL.
+            notification._id = new mongoose.Types.ObjectId();
+
             try {
-              await makeInteractiveCall(user.phoneNumber, notificationId);
+              const call = await makeInteractiveCall(
+                user.phoneNumber,
+                notification._id
+              );
+              if (call && call.sid) {
+                callSid = call.sid;
+                sentSuccessfully = true;
+                console.log(`📞 Call placed: ${call.sid}`);
+              }
             } catch (error) {
-              // Fallback to SMS if call fails
-              console.log(`Falling back to SMS for ${user.phoneNumber}`);
-              await sendSMS(user.phoneNumber, message);
+              if (error.message === "CALL_NOT_PLACED") {
+                // Fallback
+                console.log("⚠️ Fallback to SMS");
+                try {
+                  const sms = await sendSMS(user.phoneNumber, message);
+                  smsSid = sms.sid;
+                  sentSuccessfully = true;
+                } catch (e) { console.error("Fallback failed", e); }
+              }
             }
           } else {
-            // Default to SMS
-            await sendSMS(user.phoneNumber, message);
+            try {
+              const sms = await sendSMS(user.phoneNumber, message);
+              smsSid = sms.sid;
+              sentSuccessfully = true;
+            } catch (e) { console.error("SMS failed", e); }
           }
 
-          // Update flags
-          dueReminders.forEach((reminder) => {
-            reminder.remainderSent = true;
-          });
-
-          await user.save();
-        } catch (error) {
-          console.error(`Error processing ${user.phoneNumber}:`, error);
+          // === Mark all reminders in this slot as sent ATOMICALLY ===
+          if (sentSuccessfully) {
+            await User.updateOne(
+              { _id: user._id },
+              {
+                $push: { notificationHistory: notification },
+                $set: {
+                  "medicationSchedule.$[elem].reminderSent": true
+                }
+              },
+              {
+                arrayFilters: [{ "elem._id": { $in: scheduleIds } }]
+              }
+            );
+          }
         }
       }
-    } catch (error) {
-      console.error("Critical error in reminder cycle:", error);
+    } catch (err) {
+      console.error("❌ Cron job error:", err.message);
     }
   });
 }
 
-async function notifyCaregivers(user, reminders) {
+/**
+ * Notify caregivers when meds are skipped/missed
+ */
+export async function notifyCaregivers(user, reminders, operation) {
   if (!user.caregivers || user.caregivers.length === 0) return;
 
   const prescriptionsMap = {};
@@ -153,6 +204,7 @@ async function notifyCaregivers(user, reminders) {
       }
       prescriptionsMap[prescription.username].push({
         name: prescription.name,
+        forWho: prescription.forWho,
       });
     }
   });
@@ -164,17 +216,16 @@ async function notifyCaregivers(user, reminders) {
 
     caregiver.forPersons.forEach((person) => {
       if (prescriptionsMap[person]) {
-        medicationsToNotify = [
-          ...medicationsToNotify,
-          ...prescriptionsMap[person],
-        ];
+        medicationsToNotify.push(...prescriptionsMap[person]);
       }
     });
 
     if (medicationsToNotify.length === 0) continue;
 
+    const skippedFor = Object.keys(prescriptionsMap).join(", ");
+
     const message =
-      `⚠️ User ${user.phoneNumber} has skipped:\n` +
+      `⚠️ ${skippedFor} has ${operation}:\n` +
       medicationsToNotify.map((m) => `• ${m.name}`).join("\n");
 
     try {
@@ -182,20 +233,21 @@ async function notifyCaregivers(user, reminders) {
       console.log(`   👩‍⚕️ Caregiver notified: ${caregiver.phoneNumber}`);
     } catch (error) {
       console.error(
-        `   ❌ Failed to notify caregiver ${caregiver.phoneNumber}:`,
+        `   ❌ Failed caregiver SMS ${caregiver.phoneNumber}:`,
         error
       );
     }
   }
 }
 
+/**
+ * Cron Job — Follow-up reminders
+ */
 export function startReminderFollowupCron() {
   cron.schedule("*/1 * * * *", async () => {
     const now = moment.utc();
     console.log(
-      `🔁 Checking follow-up reminders at ${now.format(
-        "YYYY-MM-DD HH:mm:ss"
-      )} UTC`
+      `🔁 Follow-up check at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
     );
 
     try {
@@ -220,13 +272,11 @@ export function startReminderFollowupCron() {
             await sendFollowupReminder(user, notification, 2);
           } else if (notification.resends === 2 && minutesPassed >= 40) {
             notification.status = "skipped";
-            console.log(
-              `🚫 Marked reminder as skipped for ${user.phoneNumber}`
-            );
+            console.log(`🚫 Reminder skipped for ${user.phoneNumber}`);
             const skippedReminders = notification.medications.map((name) => ({
               prescriptionName: name,
             }));
-            await notifyCaregivers(user, skippedReminders);
+            await notifyCaregivers(user, skippedReminders, "missed");
           }
         }
 
@@ -241,14 +291,12 @@ export function startReminderFollowupCron() {
 async function sendFollowupReminder(user, notification, resendCount) {
   try {
     const medList = notification.medications.join(", ");
-    const message = `It's time to take your medications: ${medList}.\n\nPlease reply:\nD – if you have taken them\nS – if you need to skip this dose\n\nThank you for using CareTrackRX.`;
+    const message = `Reminder \n\n It's time to take your medications:  \n ${medList}\n\n Please Reply:\nD – if you have taken them \nS – if you need to skip the dose. \n\n Thank you for using CareTrackRx.`;
 
     if (user.notificationType === "call" && resendCount === 0) {
-      // Only make call for first follow-up, then use SMS
       try {
         await makeInteractiveCall(user.phoneNumber, notification._id);
       } catch (error) {
-        // Fallback to SMS
         await sendSMS(user.phoneNumber, message);
       }
     } else {
@@ -256,18 +304,19 @@ async function sendFollowupReminder(user, notification, resendCount) {
     }
 
     console.log(`📤 Follow-up sent to ${user.phoneNumber}`);
-
     notification.resends = resendCount;
   } catch (error) {
-    console.error(`❌ Failed to resend to ${user.phoneNumber}:`, error);
+    console.error(`❌ Follow-up failed for ${user.phoneNumber}:`, error);
     notification.status = "failed";
     notification.error = error.message;
   }
 }
 
+/**
+ * (Optional) Nightly refresh of medication schedules
+ */
 function scheduleNightlyRefresh() {
   cron.schedule("0 3 * * *", async () => {
-    // 3 AM daily
     const activeUsers = await User.find({ status: "active" });
 
     for (const user of activeUsers) {
@@ -286,12 +335,10 @@ function scheduleNightlyRefresh() {
         )
       );
 
-      // Preserve completed items
       const completedItems = user.medicationSchedule.filter(
         (item) => item.status !== "pending"
       );
 
-      // Generate new schedule
       const newSchedule = generateMedicationSchedule(
         allReminders,
         user.timezone
@@ -303,4 +350,155 @@ function scheduleNightlyRefresh() {
   });
 }
 
-scheduleNightlyRefresh();
+export async function checkLowPills() {
+  const now = moment.utc();
+  console.log(
+    `🧾 Low-pill check running at ${now.format("YYYY-MM-DD HH:mm:ss z")}`
+  );
+
+  try {
+    const users = await User.find({
+      status: "active",
+      notificationsEnabled: true,
+    });
+
+    for (const user of users) {
+      if (!user.prescriptions || user.prescriptions.length === 0) continue;
+
+      const lowPillPrescriptions = [];
+
+      for (const prescription of user.prescriptions) {
+        const totalPills = prescription.initialCount || 0;
+        const timesToTake = prescription.timesToTake || 1;
+        const dosage = prescription.dosage || 1;
+
+        // Each day consumes dosage * timesToTake pills
+        const pillsPerDay = dosage * timesToTake;
+
+        // If you’re tracking remaining pills dynamically, replace this with prescription.tracking.remainingCount
+        const remainingPills =
+          prescription.tracking?.pillCount ?? totalPills;
+
+        if (!remainingPills || remainingPills <= 0) continue;
+
+        // Check if there are any pending schedule items for this prescription
+        const hasPendingSchedule = user.medicationSchedule.some(
+          (item) =>
+            item.prescriptionName === prescription.name &&
+            item.status === "pending"
+        );
+
+        const daysLeft = remainingPills / pillsPerDay;
+
+        // Trigger if:
+        // 1. Days left is <= 1 (original logic)
+        // 2. OR schedule is exhausted (no pending items) but we still have pills (tracking issue or missed doses)
+        if ((daysLeft <= 1 || !hasPendingSchedule) && remainingPills > 0) {
+          lowPillPrescriptions.push({
+            name: prescription.name,
+            daysLeft: daysLeft.toFixed(1),
+            reason: !hasPendingSchedule ? "schedule_exhausted" : "low_pills",
+          });
+        }
+      }
+
+      if (lowPillPrescriptions.length > 0) {
+        const message = `⚠️ You have 1 day or less of pills left OR your schedule is finished for:\n${lowPillPrescriptions
+          .map(
+            (m) =>
+              `• ${m.name} (${m.reason === "schedule_exhausted"
+                ? "Schedule ended, Refill required"
+                : `${m.daysLeft} days left`
+              })`
+          )
+          .join(
+            "\n"
+          )}\n\nPlease arrange a refill soon.\nThank you for using CareTrackRx!`;
+
+        try {
+          await sendSMS(user.phoneNumber, message);
+          console.log(`💊 Low-pill/Refill reminder sent to ${user.phoneNumber}`);
+        } catch (error) {
+          console.error(
+            `❌ Failed low-pill SMS for ${user.phoneNumber}:`,
+            error.message
+          );
+        }
+      }
+    }
+  } catch (err) {
+    console.error("🚨 Error in low-pill check cron:", err.message);
+  }
+}
+
+/**
+ * Cron Job — Low-pill reminder (less than 2 days left)
+ * Runs daily at 9 AM UTC
+ */
+export function startLowPillCheckCron() {
+  // Runs every day at 9 AM Pakistan time
+  cron.schedule(
+    "0 14 * * *",
+    checkLowPills
+  );
+}
+
+/**
+ * Cron Job — Prescription over (pill count = 0)
+ * Runs daily at 10 AM UTC
+ */
+export function startPrescriptionOverCron() {
+  cron.schedule("0 10 * * *", async () => {
+    const now = moment.utc();
+    console.log(
+      `🗑️ Prescription-over check at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
+    );
+
+    try {
+      const users = await User.find({ status: "active" });
+
+      for (const user of users) {
+        if (!user.prescriptions || user.prescriptions.length === 0) continue;
+
+        const zeroPillPrescriptions = user.prescriptions.filter(
+          (p) => p.tracking && p.tracking.pillCount <= 0 && !p.finishedNotified
+        );
+
+        if (zeroPillPrescriptions.length === 0) continue;
+
+        // Send message before deleting
+        const message = `✅ Your prescription period is complete for:\n${zeroPillPrescriptions
+          .map((p) => `• ${p.name}`)
+          .join(
+            "\n"
+          )}\n\nPlease contact your doctor if you need a refill.\nStay healthy!`;
+
+        try {
+          await sendSMS(user.phoneNumber, message);
+          console.log(`📨 Prescription-over SMS sent to ${user.phoneNumber}`);
+
+          // Mark as notified
+          zeroPillPrescriptions.forEach(p => p.finishedNotified = true);
+          await user.save();
+
+        } catch (error) {
+          console.error(
+            `❌ Failed to send end SMS to ${user.phoneNumber}:`,
+            error
+          );
+        }
+
+        // User deletion removed. Only notifying.
+        // await User.deleteOne({ _id: user._id });
+        // console.log(`🗑️ User ${user.phoneNumber} deleted due to zero pills.`);
+      }
+    } catch (err) {
+      console.error("🚨 Error in prescription-over cron:", err);
+    }
+  });
+}
+
+// Uncomment if you want to auto-refresh
+// scheduleNightlyRefresh();
+
+export default callRouter;

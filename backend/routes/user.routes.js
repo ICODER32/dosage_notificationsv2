@@ -5,12 +5,12 @@ import twilio from "twilio";
 import {
   calculateReminderTimes,
   generateMedicationSchedule,
+  resolveScheduleConflicts,
 } from "../utils/scheduler.js";
 import cron from "node-cron";
 import moment from "moment";
 import { DateTime } from "luxon";
 import momenttimezone from "moment-timezone";
-import fs from "fs";
 
 configDotenv();
 const router = express.Router();
@@ -124,11 +124,12 @@ router.post("/sms/reply", async (req, res) => {
     WV: "America/New_York", // West Virginia
     WI: "America/Chicago", // Wisconsin
     WY: "America/Denver",
+    DEU: "Europe/Berlin", // Germany – CET/CEST
   };
   if (req.body.FromState && stateTimezones[req.body.FromState]) {
     user.timezone = stateTimezones[req.body.FromState];
   } else {
-    user.timezone = "Asia/Karachi";
+    user.timezone = "America/New_York";
   }
 
   await user.save();
@@ -141,45 +142,61 @@ router.post("/sms/reply", async (req, res) => {
 
   // Handle special commands
   if (lowerMsg === "h" || lowerMsg === "help") {
-    reply = `Commands:\n\nT – set time\nD – confirm taken\nS – skip dose\nSTOP – stop reminders\nPAUSE - Doctor Advice or Breaks\nREMINDER- Continue after STOP\nRESUME Continue after PAUSE\nCANCEL - cancel reminders\nFor Dashboard, visit ${process.env.DASHBOARD_LINK}`;
+    reply = `Commands:\n\nT – set time\nD – confirm taken\nS – skip dose\nPAUSE - Doctor Advice or Breaks\nRESUME Continue after PAUSE\nCANCEL - cancel reminders\nN- To change notification type from SMS to Call or Call to SMS\nFor Dashboard, visit ${process.env.DASHBOARD_URL}`;
     handled = true;
   }
 
-  if (lowerMsg === "d") {
+  if (!handled && lowerMsg === "d") {
     const pendingNotifications = user.notificationHistory
       .filter((n) => n.status === "pending")
       .sort((a, b) => b.sentAt - a.sentAt);
 
     if (pendingNotifications.length === 0) {
-      const missedNotifications = user.notificationHistory
-        .filter((n) => n.status === "skipped")
-        .sort((a, b) => b.sentAt - a.sentAt);
+      // Get the very last action regardless of status
+      const lastAction = user.notificationHistory
+        .filter((n) => n.status === "skipped" || n.status === "taken")
+        .sort((a, b) => b.sentAt - a.sentAt)[0];
 
-      if (missedNotifications.length > 0) {
-        const lastMissed = missedNotifications[0];
-        const missedMeds = lastMissed.medications.join(", ");
-        // Format the time in 12-hour format in the user's timezone
-        const missedTime = moment(lastMissed.scheduledTime)
-          .tz(user.timezone)
-          .format("h:mm A");
+      if (lastAction) {
+        const meds = lastAction.medications.join(", ");
 
-        reply = `You don't have any pending medications to confirm.\nYour ${missedMeds} dose at ${missedTime} was already marked as missed.`;
+        // 🔑 Collect scheduled times
+        let times = [];
+        for (const scheduleId of lastAction.scheduleIds || []) {
+          const scheduleItem = user.medicationSchedule.id(scheduleId);
+          if (scheduleItem?.scheduledTime) {
+            times.push(
+              moment(scheduleItem.scheduledTime)
+                .tz(user.timezone)
+                .format("h:mm A")
+            );
+          }
+        }
+        const timeStr = times.length > 0 ? times.join(", ") : "unknown time";
+
+        // Just report back what the last status was
+        if (lastAction.status === "skipped") {
+          reply = `You don't have any pending medications to confirm.\nYour ${meds} dose scheduled at ${timeStr} was already marked as missed.`;
+        } else if (lastAction.status === "taken") {
+          reply = `You don't have any pending medications to confirm.\nThe last medication you took was ${meds} scheduled at ${timeStr}.`;
+        }
       } else {
         reply = "You don't have any pending medications to confirm.";
       }
+
+      console.log(reply);
       handled = true;
     } else {
+      // Mark most recent pending as taken
       const mostRecentNotification = pendingNotifications[0];
       mostRecentNotification.status = "taken";
 
-      // Update ALL linked schedule items
       mostRecentNotification.scheduleIds.forEach((scheduleId) => {
         const scheduleItem = user.medicationSchedule.id(scheduleId);
         if (scheduleItem && scheduleItem.status === "pending") {
           scheduleItem.status = "taken";
           scheduleItem.takenAt = now;
 
-          // Update prescription counts
           const prescription = user.prescriptions.id(
             scheduleItem.prescriptionId
           );
@@ -197,35 +214,100 @@ router.post("/sms/reply", async (req, res) => {
       handled = true;
     }
   }
+
+  //  change notification type to call if sms and sms if call
+
+  if (lowerMsg === "n") {
+    if (user.notificationType === "sms") {
+      user.notificationType = "call";
+      reply =
+        "Thank you for using CareTrackRX. Notification type changed to Call.";
+    } else {
+      user.notificationType = "sms";
+      reply =
+        "Thank you for using CareTrackRX. Notification type changed to SMS.";
+    }
+    handled = true;
+    await user.save();
+  }
   if (!handled && lowerMsg === "s") {
     const pendingNotifications = user.notificationHistory
       .filter((n) => n.status === "pending")
       .sort((a, b) => b.sentAt - a.sentAt);
 
     if (pendingNotifications.length === 0) {
-      reply = "You don't have any pending medications to skip.";
+      // No pending → look for last skipped OR taken
+      const lastAction = user.notificationHistory
+        .filter((n) => n.status === "skipped" || n.status === "taken")
+        .sort((a, b) => b.sentAt - a.sentAt)[0];
+
+      if (lastAction) {
+        const meds = lastAction.medications.join(", ");
+
+        // 🔑 Get scheduled times from scheduleIds
+        let times = [];
+        for (const scheduleId of lastAction.scheduleIds || []) {
+          const scheduleItem = user.medicationSchedule.id(scheduleId);
+          if (scheduleItem?.scheduledTime) {
+            times.push(
+              moment(scheduleItem.scheduledTime)
+                .tz(user.timezone)
+                .format("h:mm A")
+            );
+          }
+        }
+        const timeStr = times.length > 0 ? times.join(", ") : "unknown time";
+
+        if (lastAction.status === "skipped") {
+          reply = `You don't have any pending medications to skip.\nThe last medication you skipped was ${meds} scheduled at ${timeStr}.`;
+        } else {
+          reply = `You don't have any pending medications to skip.\nThe last medication you took was ${meds} scheduled at ${timeStr}.`;
+        }
+      } else {
+        reply = "You don't have any pending medications to skip.";
+      }
+
       handled = true;
     } else {
       const mostRecentNotification = pendingNotifications[0];
+      const skippedReminders = [];
+      // update the tracking of skipped count as well
+      user.prescriptions.forEach((p) => {
+        if (mostRecentNotification.medications.includes(p.name)) {
+          p.tracking.skippedCount += 1;
+        }
+      });
+
       mostRecentNotification.scheduleIds.forEach((scheduleId) => {
         const scheduleItem = user.medicationSchedule.id(scheduleId);
         if (scheduleItem && scheduleItem.status === "pending") {
           scheduleItem.status = "skipped";
 
-          // Update prescription tracking
           const prescription = user.prescriptions.id(
             scheduleItem.prescriptionId
           );
           if (prescription) {
             prescription.tracking.skippedCount += 1;
+
+            skippedReminders.push({
+              prescriptionName: prescription.name,
+            });
           }
         }
       });
 
+      // 🔑 mark the notification itself as skipped
+      mostRecentNotification.status = "skipped";
+
       reply = `Skipped! You chose to skip your medications: ${mostRecentNotification.medications.join(
         ", "
       )}.`;
+      console.log(reply);
       handled = true;
+
+      if (skippedReminders.length > 0) {
+        await notifyCaregivers(user, skippedReminders, "skipped");
+      }
     }
   }
 
@@ -262,9 +344,14 @@ router.post("/sms/reply", async (req, res) => {
       handled = true;
     } else {
       const userTimezone = user.timezone || "UTC";
-      const medList = enabledMeds
-        .map((p, i) => {
-          const medTimes = user.medicationSchedule
+      let needsSave = false;
+
+      const medList = enabledMeds.map((p, i) => {
+        let displayTimes = [];
+
+        // 1. Try to get effective times from schedule
+        if (user.medicationSchedule && user.medicationSchedule.length > 0) {
+          const sched = user.medicationSchedule
             .filter((item) => item.prescriptionName === p.name)
             .map((item) =>
               moment(item.scheduledTime).tz(userTimezone).format("h:mm A")
@@ -276,7 +363,7 @@ router.post("/sms/reply", async (req, res) => {
         })
         .join("\n");
 
-      reply = `Which pill would you like to set a custom time for?\nReply with a number:\n${medList}\n(Type the number of the pill you want to change.)`;
+      reply = `Which pill would you like to set a custom time for?\nReply with a number:\n${medList.join("\n")}\n(Type the number of the pill you want to change.)`;
       user.flowStep = "set_time_select_med";
       user.temp = {};
       await user.save();
@@ -285,13 +372,41 @@ router.post("/sms/reply", async (req, res) => {
   }
 
   if (!handled && lowerMsg === "pause") {
-    user.status = "paused";
-    user.tracking.optOutDate = now;
-    user.prescriptions.forEach((p) => {
-      p.remindersEnabled = false;
+    if (user.prescriptions.length === 0) {
+      reply = "You don’t have any active medications to pause.";
+      handled = true;
+    } else {
+      let list = "Which medication would you like to pause?\n";
+      user.prescriptions.forEach((p, idx) => {
+        list += `${idx + 1}. ${p.name}\n`;
+      });
+
+      reply = list + "Reply with the number(s), e.g. '1' or '1,2'";
+      console.log(reply);
+      user.flowStep = "pause_select"; // 🔑 move flow into selection mode
+      handled = true;
+    }
+  }
+  if (!handled && user.flowStep === "pause_select") {
+    const numbers = lowerMsg.split(",").map((n) => parseInt(n.trim(), 10));
+    const pausedMeds = [];
+
+    numbers.forEach((num) => {
+      const index = num - 1;
+      if (!isNaN(index) && user.prescriptions[index]) {
+        user.prescriptions[index].remindersEnabled = false;
+        pausedMeds.push(user.prescriptions[index].name);
+      }
     });
-    user.medicationSchedule = [];
-    reply = "Reminders paused for all medications. Text RESUME to resume.";
+
+    if (pausedMeds.length > 0) {
+      reply = `Paused reminders for: ${pausedMeds.join(", ")}.`;
+    } else {
+      reply = "Invalid selection. Please reply with valid medication numbers.";
+    }
+    console.log(reply);
+
+    user.flowStep = "init"; // 🔑 reset flow
     handled = true;
   }
 
@@ -423,96 +538,130 @@ router.post("/sms/reply", async (req, res) => {
         break;
 
       case "ask_wake_time":
-        if (validateTime(msg, "morning")) {
+        if (!validateStrictTime(msg)) {
+          reply = "Please enter correct time e.g (7:00am)";
+        } else if (validateTime(msg, "morning")) {
           user.wakeTime = parseTime(msg);
           reply =
             "Great! Now, what time do you usually go to sleep? (e.g., 10 PM)";
           user.flowStep = "ask_sleep_time";
         } else {
-          reply = "Please enter a valid morning time (e.g., 7 AM)";
+          reply = "Please enter correct time e.g (7:00am)";
         }
         break;
 
       case "ask_sleep_time":
-        if (validateTime(msg, "night")) {
-          user.sleepTime = parseTime(msg);
-
-          const enabledMeds = user.prescriptions.filter(
-            (p) => p.remindersEnabled
-          );
-
-          const allReminders = enabledMeds.flatMap((p) => {
-            return calculateReminderTimes(
-              user.wakeTime,
-              user.sleepTime,
-              p.instructions,
-              p.timesToTake,
-              p.name,
-              p.tracking.pillCount,
-              p.dosage
-            ).map((r) => ({
-              time: r.time,
-              prescriptionName: p.name,
-              pillCount: p.tracking.pillCount,
-              dosage: p.dosage,
-            }));
-          });
-
-          const uniqueReminders = Array.from(
-            new Map(
-              allReminders.map((r) => [`${r.prescriptionName}-${r.time}`, r])
-            ).values()
-          );
-
-          uniqueReminders.sort(
-            (a, b) => moment(a.time, "HH:mm") - moment(b.time, "HH:mm")
-          );
-
-          user.reminderTimes = uniqueReminders.map((r) => r.time);
-          user.medicationSchedule = generateMedicationSchedule(
-            uniqueReminders,
-            user.timezone
-          );
-          user.status = "active";
-          user.notificationsEnabled = true;
-
-          // Add this line to move to notification type selection
-          user.flowStep = "ask_notification_type";
-
-          // Group medications by time and format the message
-          const groupedByTime = {};
-          uniqueReminders.forEach((reminder) => {
-            const time12h = moment(reminder.time, "HH:mm").format("h:mm A");
-            if (!groupedByTime[time12h]) {
-              groupedByTime[time12h] = [];
-            }
-            groupedByTime[time12h].push(reminder.prescriptionName);
-          });
-
-          // Create the formatted message
-          let medicationList = [];
-          for (const [time, meds] of Object.entries(groupedByTime)) {
-            medicationList.push(`${meds.join(", ")} at ${time}`);
-          }
-
-          const formattedSchedule = medicationList.join("; ");
-
-          reply = `Thank you! Your reminders are set up for:\n${formattedSchedule}\n\nSelect your notification type:\n1. SMS notifications\n2. Phone call notifications\n\nReply with 1 or 2`;
+        if (!validateStrictTime(msg)) {
+          reply = "Please enter correct time e.g (7:00pm)";
         } else {
-          reply = "Please enter a valid night time (e.g., 10 PM)";
+          const parsed = parseTime(msg, "PM");
+          if (parsed) {
+            user.sleepTime = parsed;
+
+            const enabledMeds = user.prescriptions.filter(
+              (p) => p.remindersEnabled
+            );
+
+            const allReminders = enabledMeds.flatMap((p) => {
+              const reminders = calculateReminderTimes(
+                user.wakeTime,
+                user.sleepTime,
+                p.instructions,
+                p.timesToTake,
+                p.name,
+                p.tracking.pillCount,
+                p.dosage
+              );
+
+              // Save calculated times to prescription
+              p.reminderTimes = reminders.map((r) => r.time);
+
+              return reminders.map((r) => ({
+                time: r.time,
+                prescriptionName: p.name,
+                pillCount: p.tracking.pillCount,
+                dosage: p.dosage,
+              }));
+            });
+
+            const uniqueReminders = Array.from(
+              new Map(
+                allReminders.map((r) => [`${r.prescriptionName}-${r.time}`, r])
+              ).values()
+            );
+
+            uniqueReminders.sort(
+              (a, b) => moment(a.time, "HH:mm") - moment(b.time, "HH:mm")
+            );
+
+            user.reminderTimes = uniqueReminders.map((r) => r.time);
+            user.medicationSchedule = generateMedicationSchedule(
+              uniqueReminders,
+              user.timezone
+            );
+            user.status = "active";
+            user.notificationsEnabled = true;
+
+            // Add this line to move to notification type selection
+            user.flowStep = "ask_notification_type";
+
+            // Group medications by time and format the message
+            const groupedByMed = {};
+
+            // Use the staggered schedule to show actual times
+            // Fix: Only show the first day's schedule to avoid confusion if subsequent days differ
+            if (user.medicationSchedule.length > 0) {
+              const startDates = user.medicationSchedule.map(i => new Date(i.scheduledTime).getTime());
+              const minDate = Math.min(...startDates);
+              const windowEnd = minDate + 24 * 60 * 60 * 1000; // 24 hours from first item
+
+              user.medicationSchedule.forEach((item) => {
+                if (item.scheduledTime) {
+                  const itemTime = new Date(item.scheduledTime).getTime();
+
+                  if (itemTime < windowEnd) {
+                    const time12h = moment(item.scheduledTime)
+                      .tz(user.timezone)
+                      .format("h:mm A");
+
+                    if (!groupedByMed[item.prescriptionName]) {
+                      groupedByMed[item.prescriptionName] = new Set();
+                    }
+                    groupedByMed[item.prescriptionName].add(time12h);
+                  }
+                }
+              });
+            }
+
+            // Create the formatted message
+            let medicationList = [];
+            for (const [med, timesSet] of Object.entries(groupedByMed)) {
+              // Sort times
+              const times = Array.from(timesSet).sort(
+                (a, b) => moment(a, "h:mm A") - moment(b, "h:mm A")
+              );
+              medicationList.push(`${med} at ${times.join(", ")}`);
+            }
+
+            const formattedSchedule = medicationList.join("\n");
+
+            reply = `Thank you! Your reminders are set up for:\n${formattedSchedule}\n\nSelect your notification type:\n1. SMS notifications\n2. Phone call notifications\n\nReply with 1 or 2`;
+          } else {
+            reply = "Please enter a valid night time (e.g., 10 PM)";
+          }
         }
         break;
       case "ask_notification_type":
         if (msg === "1") {
           user.notificationType = "sms";
           user.flowStep = "done";
-          reply =
-            "You'll receive SMS notifications for your medication reminders.";
+          reply = `Thanks for using CareTrackRx! You’ll continue to receive SMS notifications for your medication reminders.  
+For more details and history, please visit your dashboard: ${process.env.DASHBOARD_URL}. For assistance, reply with "H".`;
         } else if (msg === "2") {
           user.notificationType = "call";
           user.flowStep = "done";
-          reply =
-            "You'll receive phone call notifications for your medication reminders.";
+          reply = `Thanks for using CareTrackRx! You’ll continue to receive Call notifications for your medication reminders.  
+For more details and history, please visit your dashboard: ${process.env.DASHBOARD_URL}. For assistance, reply with "H".`;
         } else {
           reply =
             "Please select a valid option:\n1. SMS notifications\n2. Phone call notifications";
@@ -538,11 +687,28 @@ router.post("/sms/reply", async (req, res) => {
           await user.save();
 
           // Get current times in user's timezone
-          const medTimes = user.medicationSchedule
-            .filter((item) => item.prescriptionName === selectedMed.name)
-            .map((item) =>
-              moment(item.scheduledTime).tz(user.timezone).format("h:mm A")
+          let medTimes = (selectedMed.reminderTimes || []).map((t) =>
+            moment(t, "HH:mm").format("h:mm A")
+          );
+
+          // Auto-repair: If too many times or empty
+          if (medTimes.length === 0 || medTimes.length > selectedMed.timesToTake) {
+            const calculated = calculateReminderTimes(
+              user.wakeTime,
+              user.sleepTime,
+              selectedMed.instructions,
+              selectedMed.timesToTake,
+              selectedMed.name,
+              selectedMed.tracking.pillCount,
+              selectedMed.dosage
             );
+            medTimes = calculated.map((r) =>
+              moment(r.time, "HH:mm").format("h:mm A")
+            );
+            // Save back to prescription
+            selectedMed.reminderTimes = calculated.map((r) => r.time);
+            await user.save();
+          }
 
           const uniqueTimes = [...new Set(medTimes)];
           const currentTimes = uniqueTimes.length
@@ -588,68 +754,58 @@ router.post("/sms/reply", async (req, res) => {
           reply =
             "No valid times entered. Please use formats like 7am or 8:30pm.";
         } else {
-          // Update ONLY the selected prescription's times
-          const enabledMeds = user.prescriptions.filter(
-            (p) => p.remindersEnabled
+          // Get the current times for this medication from the prescription
+          const currentTimes = prescription.reminderTimes || [];
+
+          // Replace with new times (remove duplicates if user entered same time twice)
+          const updatedTimes = [...new Set(validTimes)];
+
+          // Update the prescription's reminder times
+          prescription.reminderTimes = updatedTimes;
+
+          // Regenerate the medication schedule for this prescription only
+          const userTimezone = user.timezone || "UTC";
+
+          // Remove existing schedule entries for this prescription
+          user.medicationSchedule = user.medicationSchedule.filter(
+            (item) =>
+              item.prescriptionName !== prescription.name ||
+              item.status !== "pending"
           );
 
-          // Create new reminders array with updated times for selected med
-          const allReminders = enabledMeds.flatMap((p) => {
-            if (p.name === prescription.name) {
-              // Use new times for this medication
-              return validTimes.map((time) => ({
-                time,
-                prescriptionName: p.name,
-                pillCount: p.tracking.pillCount,
-                dosage: p.dosage,
-              }));
-            } else {
-              // Use existing schedule times for other medications
-              const medSchedule = user.medicationSchedule.filter(
-                (item) => item.prescriptionName === p.name
-              );
+          // Generate new schedule for this prescription
+          const now = moment().tz(userTimezone);
+          const today = now.startOf("day");
 
-              // Get distinct times from schedule
-              const distinctTimes = [
-                ...new Set(
-                  medSchedule.map((item) =>
-                    moment(item.scheduledTime).tz(user.timezone).format("HH:mm")
-                  )
-                ),
-              ];
+          for (let day = 0; day < 7; day++) {
+            const dayStart = today.clone().add(day, "days");
 
-              return distinctTimes.map((time) => ({
-                time,
-                prescriptionName: p.name,
-                pillCount: p.tracking.pillCount,
-                dosage: p.dosage,
-              }));
+            for (const timeStr of updatedTimes) {
+              const [hour, minute] = timeStr.split(":").map(Number);
+
+              const scheduledTime = dayStart.clone().set({ hour, minute });
+
+              if (scheduledTime.isAfter(now)) {
+                user.medicationSchedule.push({
+                  scheduledTime: scheduledTime.toDate(),
+                  status: "pending",
+                  prescriptionName: prescription.name,
+                });
+              }
             }
-          });
+          }
 
-          const uniqueReminders = Array.from(
-            new Map(
-              allReminders.map((r) => [`${r.prescriptionName}-${r.time}`, r])
-            ).values()
-          );
-
-          uniqueReminders.sort(
-            (a, b) => moment(a.time, "HH:mm") - moment(b.time, "HH:mm")
-          );
-
-          user.reminderTimes = uniqueReminders.map((r) => r.time);
-
-          // Regenerate schedule for ALL medications with updated times
-          user.medicationSchedule = generateMedicationSchedule(
-            uniqueReminders,
-            user.timezone
+          // === Apply Ripple Stagger to ensure 30-min gaps ===
+          user.medicationSchedule = resolveScheduleConflicts(
+            user.medicationSchedule,
+            userTimezone
           );
 
           user.flowStep = "done";
           user.temp = {};
 
           // Format times in user's timezone for display
-          const formattedTimes = validTimes.map((timeStr) => {
+          const formattedTimes = updatedTimes.map((timeStr) => {
             const [hours, minutes] = timeStr.split(":");
             const hour = parseInt(hours, 10);
             const period = hour >= 12 ? "PM" : "AM";
@@ -666,6 +822,7 @@ router.post("/sms/reply", async (req, res) => {
             )}`;
           }
         }
+        handled = true;
         break;
       default:
         reply = "Sorry, I didn't understand you. need help, text H.";
@@ -707,6 +864,12 @@ function validateTimeAny(input) {
   return timeRegex.test(input);
 }
 
+// Strict validation: 12-hour format with colon and AM/PM
+function validateStrictTime(input) {
+  const timeRegex = /^(0?[1-9]|1[0-2]):[0-5][0-9]\s*(am|pm)$/i;
+  return timeRegex.test(input.trim());
+}
+
 // Validate time input (morning or night)
 function validateTime(input, type) {
   if (!validateTimeAny(input)) return false;
@@ -735,24 +898,40 @@ function validateTime(input, type) {
 }
 
 // Parse time input into HH:mm format
-function parseTime(input) {
+function parseTime(input, defaultPeriod = null) {
+  input = input.trim().toLowerCase();
+
+  // Handle inputs like "1030" → "10:30"
+  if (/^\d{3,4}$/.test(input)) {
+    input =
+      input.length === 3
+        ? `${input[0]}:${input.slice(1)}`
+        : `${input.slice(0, 2)}:${input.slice(2)}`;
+  }
+
   const timeRegex = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i;
   const match = input.match(timeRegex);
 
-  if (!match) return "08:00"; // Default if parsing fails
+  if (!match) return "08:00"; // default fallback if invalid
 
   let [_, hour, minute, period] = match;
   hour = parseInt(hour, 10);
   minute = minute ? parseInt(minute, 10) : 0;
 
+  // Apply default AM/PM if user didn’t specify
+  if (!period && defaultPeriod) {
+    period = defaultPeriod.toLowerCase();
+  }
+
   // Convert to 24-hour format
   if (period) {
-    period = period.toLowerCase();
     if (period === "pm" && hour < 12) hour += 12;
     if (period === "am" && hour === 12) hour = 0;
   }
 
-  // Format as HH:mm
+  // Keep hours within 0–23
+  hour = hour % 24;
+
   return `${hour.toString().padStart(2, "0")}:${minute
     .toString()
     .padStart(2, "0")}`;
@@ -805,6 +984,11 @@ router.patch("/updatewho/:id", async (req, res) => {
       });
     }
 
+    if (forWho === "myself") {
+      user.username = username; // Set username to user's name
+      await user.save();
+    }
+
     // Update the prescription in the user's array
     const prescriptionIndex = user.prescriptions.findIndex(
       (p) => p._id.toString() === prescriptionId
@@ -846,28 +1030,26 @@ router.patch("/update/:id", async (req, res) => {
   const updateData = req.body;
 
   try {
-    // 1. Find user by phone number
+    // 1️⃣ Find user
     const user = await User.findOne({ phoneNumber: updateData.phoneNumber });
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
-    // 2. Find the specific prescription by ID
+    // 2️⃣ Find the prescription
     const prescription = user.prescriptions.id(prescriptionId);
     if (!prescription) {
-      return res.status(404).json({
-        success: false,
-        message: "Prescription not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Prescription not found" });
     }
 
     const oldName = prescription.name;
 
-    // 3. Update fields
-    const fields = [
+    // 3️⃣ Update editable fields
+    const editableFields = [
       "name",
       "dosage",
       "timesToTake",
@@ -875,82 +1057,108 @@ router.patch("/update/:id", async (req, res) => {
       "sideEffects",
       "initialCount",
       "remindersEnabled",
+      "reminderTimes",
     ];
 
-    fields.forEach((field) => {
+    editableFields.forEach((field) => {
       if (updateData[field] !== undefined) {
         prescription[field] = updateData[field];
       }
     });
 
-    // 4. Adjust and regenerate reminderTimes with timezone
-    if (updateData.reminderTimes) {
-      const userTimezone = user.timezone || "Asia/Karachi"; // default if missing
-
-      // Convert to 24-hour format
-      const formattedTimes = updateData.reminderTimes.map((time) => {
-        const [timePart, modifier] = time.split(" ");
-        if (!modifier) return time; // Already 24h
-        let [hours, minutes] = timePart.split(":");
-        if (modifier === "PM" && hours !== "12") {
-          hours = String(parseInt(hours, 10) + 12);
-        }
-        if (modifier === "AM" && hours === "12") {
-          hours = "00";
-        }
-        return `${hours.padStart(2, "0")}:${minutes}`;
-      });
+    // 4️⃣ If times or dosage changed → regenerate schedule
+    if (
+      updateData.reminderTimes ||
+      updateData.timesToTake ||
+      updateData.initialCount ||
+      updateData.dosage
+    ) {
+      const userTimezone = user.timezone || "Asia/Karachi";
+      const wakeTime = user.wakeTime || "07:00";
+      const sleepTime = user.sleepTime || "23:00";
 
       // Remove old schedule entries for this prescription
       user.medicationSchedule = user.medicationSchedule.filter(
-        (item) => item.prescriptionName !== oldName || item.status !== "pending"
+        (item) => item.prescriptionName !== oldName
       );
 
-      // Generate new schedule for next 7 days in user timezone
-      const now = DateTime.now().setZone(userTimezone);
-      const today = now.startOf("day");
+      // Use provided reminder times if available, otherwise recalculate
+      let reminderTimes = updateData.reminderTimes;
 
-      for (let day = 0; day < 7; day++) {
-        const dayStart = today.plus({ days: day });
-
-        for (const timeStr of formattedTimes) {
-          const [hour, minute] = timeStr.split(":").map(Number);
-
-          const scheduled = DateTime.fromObject(
-            {
-              year: dayStart.year,
-              month: dayStart.month,
-              day: dayStart.day,
-              hour,
-              minute,
-            },
-            { zone: userTimezone }
-          );
-
-          if (scheduled > now) {
-            user.medicationSchedule.push({
-              scheduledTime: scheduled.toJSDate(),
-              status: "pending",
-              prescriptionName: prescription.name,
-            });
-          }
-        }
+      // If not provided in update, check if prescription already has them saved
+      if (!reminderTimes || reminderTimes.length === 0) {
+        reminderTimes = prescription.reminderTimes;
       }
+
+      // If still no times, calculate them
+      if (!reminderTimes || reminderTimes.length === 0) {
+        reminderTimes = calculateReminderTimes(
+          wakeTime,
+          sleepTime,
+          prescription.instructions || "",
+          prescription.timesToTake,
+          prescription.name,
+          prescription.initialCount,
+          prescription.dosage
+        );
+      }
+
+      // Ensure we save the calculated times to the prescription if they weren't there
+      prescription.reminderTimes = reminderTimes;
+
+      // Generate schedule dynamically
+      const reminderObjects = reminderTimes.map((time) => ({
+        prescriptionName: prescription.name,
+        prescriptionId,
+        time, // e.g. "07:45"
+        dosage: prescription.dosage,
+        pillCount: prescription.initialCount,
+      }));
+
+      const newSchedule = generateMedicationSchedule(
+        reminderObjects,
+        userTimezone,
+        new Date()
+      );
+
+      // Append to medicationSchedule
+      user.medicationSchedule.push(
+        ...newSchedule.map((s) => ({
+          scheduledTime: new Date(s.scheduledTime),
+          status: "pending",
+          prescriptionName: s.prescriptionName,
+          prescriptionId,
+          reminderSent: false,
+        }))
+      );
     }
 
-    // 5. Update metadata
+    // 5️⃣ Re-run global conflict resolution (ripple stagger)
+    user.medicationSchedule = resolveScheduleConflicts(
+      user.medicationSchedule,
+      user.timezone
+    );
+
+    // 6️⃣ Mark fields as modified for Mongoose
+    user.markModified("prescriptions");
+    user.markModified("medicationSchedule");
+
+    // 6️⃣ Update metadata
     user.meta.updatedAt = new Date();
 
-    // 6. Save all changes
+    // 7️⃣ Save user
     await user.save();
+
+    console.log("✅ Prescription updated:", prescription.name);
+    console.log("🕒 New schedule count:", user.medicationSchedule.length);
 
     return res.status(200).json({
       success: true,
-      message: "Prescription updated successfully",
+      message: "Prescription updated and schedule regenerated successfully",
       prescription,
     });
   } catch (error) {
-    console.error("Error updating prescription:", error);
+    console.error("❌ Error updating prescription:", error);
     return res.status(500).json({
       success: false,
       message: "Server error while updating prescription",
@@ -958,6 +1166,65 @@ router.patch("/update/:id", async (req, res) => {
     });
   }
 });
+
+// routes/user.js
+router.delete(
+  "/prescription/:phoneNumber/:prescriptionId",
+  async (req, res) => {
+    try {
+      const { phoneNumber, prescriptionId } = req.params;
+
+      // Find user
+      const user = await User.findOne({ phoneNumber });
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+
+      // Find prescription
+      const prescription = user.prescriptions.id(prescriptionId);
+      if (!prescription) {
+        return res.status(404).json({
+          success: false,
+          message: "Prescription not found",
+        });
+      }
+
+      // Delete prescription
+      prescription.deleteOne();
+
+      // Remove schedule entries
+      user.medicationSchedule = user.medicationSchedule.filter(
+        (item) => item.prescriptionId?.toString() !== prescriptionId
+      );
+
+      // Clean up history
+      user.notificationHistory.forEach((history) => {
+        history.medications = history.medications.filter(
+          (med) => med !== prescription.name
+        );
+      });
+
+      await user.save();
+
+      return res.status(200).json({
+        success: true,
+        message: "Prescription tracking stopped successfully",
+      });
+    } catch (error) {
+      console.error("Error deleting prescription:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Server error while deleting prescription",
+        error: error.message,
+      });
+    }
+  }
+);
+
+// delete a medication and it's remainders
 export default router;
 
 export { sendMessage };

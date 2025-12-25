@@ -51,6 +51,14 @@ export default function RelativeMedication() {
   useEffect(() => {
     if (phoneNumber) getData();
   }, [phoneNumber, relativeName]);
+  useEffect(() => {
+    if (showDetailsModal) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+    return () => document.body.classList.remove("modal-open");
+  }, [showDetailsModal]);
 
   const formatTime = (isoString) => {
     if (!isoString) return "";
@@ -97,6 +105,19 @@ export default function RelativeMedication() {
     setShowDetailsModal(false);
     setSelectedPrescription(null);
   };
+  const getMedicationStats = (prescriptionName) => {
+    if (!data?.medicationSchedule) return { taken: 0, skipped: 0, missed: 0 };
+
+    const filtered = data.medicationSchedule.filter(
+      (item) => item.prescriptionName === prescriptionName
+    );
+
+    const taken = filtered.filter((item) => item.status === "taken").length;
+    const skipped = filtered.filter((item) => item.status === "skipped").length;
+    const missed = filtered.filter((item) => item.status === "missed").length;
+
+    return { taken, skipped, missed };
+  };
 
   if (loading) {
     return (
@@ -127,7 +148,7 @@ export default function RelativeMedication() {
   if (!data) return null;
 
   return (
-    <div className="relative-container custom-container">
+    <div className="relative-container custom-container page">
       <div className="page-header">
         <div>
           <h1 className="">Medications for {relativeName}</h1>
@@ -147,9 +168,8 @@ export default function RelativeMedication() {
           {data.prescriptions.map((prescription) => (
             <div
               key={prescription._id}
-              className={`relative-info-box ${
-                prescription.remindersEnabled ? "green" : "yellow"
-              }`}
+              className={`relative-info-box ${prescription.remindersEnabled ? "green" : "yellow"
+                }`}
             >
               <div className="relative-info-box-header">
                 <div>
@@ -157,9 +177,8 @@ export default function RelativeMedication() {
                   <div className="relative-info-box-subheader">
                     <span className="status who">{prescription.forWho}</span>
                     <span
-                      className={`status ${
-                        prescription.remindersEnabled ? "green" : "yellow"
-                      }`}
+                      className={`status ${prescription.remindersEnabled ? "green" : "yellow"
+                        }`}
                     >
                       {prescription.remindersEnabled ? "Active" : "Paused"}
                     </span>
@@ -203,90 +222,100 @@ export default function RelativeMedication() {
         </div>
       )}
 
-      {showDetailsModal && selectedPrescription && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2 className="modal-title">Medication Details</h2>
-              <button onClick={closeModal} className="modal-close-btn">
-                <IoMdClose className="icon" />
-              </button>
+      {showDetailsModal &&
+        selectedPrescription &&
+        (() => {
+          const { taken, skipped, missed } = getMedicationStats(
+            selectedPrescription.name
+          );
+
+          return (
+            <div className="modal-overlay">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h2 className="modal-title">Medication Details</h2>
+                  <button onClick={closeModal} className="modal-close-btn">
+                    <IoMdClose className="icon" />
+                  </button>
+                </div>
+
+                <div className="medication-modal-details">
+                  <div className="medication-modal-details-header">
+                    <h3>{selectedPrescription.name}</h3>
+                    <p>
+                      For: {relativeName} ({selectedPrescription.forWho})
+                    </p>
+                  </div>
+
+                  <div className="doses-container">
+                    <div>
+                      <p className="label">Doses per day</p>
+                      <p className="value">
+                        {selectedPrescription.timesToTake}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="label">Next Dose</p>
+                      <p className="value">
+                        {getNextDose(selectedPrescription.name)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="reminder-times-container">
+                    <p className="label">Reminder Times</p>
+                    <div className="reminder-times">
+                      {getReminderTimes(selectedPrescription.name).map(
+                        (time, index) => (
+                          <div key={index} className="reminder-time">
+                            {time}
+                          </div>
+                        )
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="stats-container">
+                    <div className="stat-box stat-green">
+                      <p className="label">Taken</p>
+                      <p className="stat-value">{taken}</p>
+                    </div>
+                    <div className="stat-box stat-yellow">
+                      <p className="label">Remaining</p>
+                      <p className="stat-value">
+                        {selectedPrescription.tracking.pillCount}
+                      </p>
+                    </div>
+                    <div className="stat-box stat-red">
+                      <p className="label">Missed</p>
+                      <p className="stat-value">{missed}</p>
+                    </div>
+                    <div className="stat-box stat-red">
+                      <p className="label">Skipped</p>
+                      <p className="stat-value">{skipped}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="label">Instructions</p>
+                    <p className="info-box">
+                      {selectedPrescription.instructions ||
+                        "No specific instructions provided."}
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="label">Side Effects</p>
+                    <p className="info-box">
+                      {selectedPrescription.sideEffects ||
+                        "No significant side effects reported."}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
-
-            <div className="medication-modal-details">
-              <div className="medication-modal-details-header">
-                <h3>{selectedPrescription.name}</h3>
-                <p>
-                  For: {relativeName} ({selectedPrescription.forWho})
-                </p>
-              </div>
-
-              <div className="doses-container">
-                <div>
-                  <p className="label">Doses per day</p>
-                  <p className="value">{selectedPrescription.timesToTake}</p>
-                </div>
-                <div>
-                  <p className="label">Next Dose</p>
-                  <p className="value">
-                    {getNextDose(selectedPrescription.name)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="reminder-times-container">
-                <p className="label">Reminder Times</p>
-                <div className="reminder-times">
-                  {getReminderTimes(selectedPrescription.name).map(
-                    (time, index) => (
-                      <div key={index} className="reminder-time">
-                        {time}
-                      </div>
-                    )
-                  )}
-                </div>
-              </div>
-
-              <div className="stats-container">
-                <div className="stat-box stat-green">
-                  <p className="label">Taken</p>
-                  <p className="stat-value">
-                    {selectedPrescription.tracking.pillCount}
-                  </p>
-                </div>
-                <div className="stat-box stat-yellow">
-                  <p className="label">Total Count</p>
-                  <p className="stat-value">
-                    {selectedPrescription.initialCount}
-                  </p>
-                </div>
-                <div className="stat-box stat-red">
-                  <p className="label">Skipped</p>
-                  <p className="stat-value">
-                    {selectedPrescription.tracking.dailyConsumption}
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <p className="label">Instructions</p>
-                <p className="info-box">
-                  {selectedPrescription.instructions ||
-                    "No specific instructions provided."}
-                </p>
-              </div>
-
-              <div>
-                <p className="label">Side Effects</p>
-                <p className="info-box">
-                  {selectedPrescription.sideEffects ||
-                    "No significant side effects reported."}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
     </div>
   );
 }

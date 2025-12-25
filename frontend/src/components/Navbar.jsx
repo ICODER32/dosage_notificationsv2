@@ -192,6 +192,9 @@ const Navbar = () => {
                 >
                   Caregiver
                 </NavLink>
+                <button onClick={handleLogout} className="logout-btn nav-link">
+                  logout
+                </button>
               </>
             )}
           </div>
@@ -201,7 +204,7 @@ const Navbar = () => {
               <IoSearch />
             </div> */}
 
-            {isAuthenticated ? (
+            {isAuthenticated && (
               <>
                 {/* <div className="icon-box">
                   <MdNotificationsNone />
@@ -209,18 +212,14 @@ const Navbar = () => {
                   <div className="noti-circle">3</div>
                 </div> */}
 
-                <button onClick={handleLogout} className="logout-btn">
+                {/* <button onClick={handleLogout} className="logout-btn">
                   <IoMdLogOut />
-                </button>
+                </button> */}
 
                 <div className="icon-box mobile-menu" onClick={closeMenu}>
                   <RxHamburgerMenu />
                 </div>
               </>
-            ) : (
-              <Link to="/login" className="btn btn-login">
-                Login
-              </Link>
             )}
 
             {/* <div className="avatar">

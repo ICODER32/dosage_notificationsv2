@@ -1,23 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useParams, useNavigate } from "react-router-dom";
-import {
-  Pill,
-  Clock,
-  Save,
-  Trash2,
-  Pause,
-  Play,
-  X,
-  ChevronDown,
-  ChevronUp,
-  ArrowLeft,
-} from "lucide-react";
-import { IoMdClose } from "react-icons/io";
+import { Pill, Clock, Save, Trash2, Pause, Play, X } from "lucide-react";
 import Swal from "sweetalert2";
 import { toast } from "react-toastify";
 import "./EditPrescription.css";
-import moment from "moment";
 
 export default function EditPrescription() {
   const phoneNumber = useSelector((state) => state.auth.phoneNumber);
@@ -29,7 +16,7 @@ export default function EditPrescription() {
   const [userData, setUserData] = useState(null);
   const [prescription, setPrescription] = useState(null);
   const [reminderTimes, setReminderTimes] = useState([]);
-  const [newTime, setNewTime] = useState("");
+  const [originalReminderTimes, setOriginalReminderTimes] = useState([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
@@ -48,17 +35,53 @@ export default function EditPrescription() {
   const formatTimeTo12Hour = (timeString) => {
     if (!timeString) return "";
 
-    // Extract hours and minutes
-    const [hours, minutes] = timeString.split(":").map(Number);
+    // Handle cases like "14:30", "02:15 PM", or even full ISO strings
+    let hours, minutes;
 
-    // Convert to 12-hour format
+    if (timeString.includes("AM") || timeString.includes("PM")) {
+      // Already 12h format → return as-is
+      return timeString;
+    } else if (timeString.includes("T")) {
+      // ISO string → extract hours/minutes
+      const date = new Date(timeString);
+      if (isNaN(date.getTime())) return "";
+      hours = date.getHours();
+      minutes = date.getMinutes();
+    } else {
+      // HH:mm format
+      const parts = timeString.split(":");
+      if (parts.length < 2) return "";
+      hours = parseInt(parts[0], 10);
+      minutes = parseInt(parts[1], 10);
+    }
+
+    // Convert to 12h
     const period = hours >= 12 ? "PM" : "AM";
-    const hours12 = hours % 12 || 12; // Convert 0 to 12 for 12-hour format
-
-    // Format minutes with leading zero if needed
-    const formattedMinutes = minutes.toString().padStart(2, "0");
+    const hours12 = hours % 12 || 12;
+    const formattedMinutes = String(minutes).padStart(2, "0");
 
     return `${hours12}:${formattedMinutes} ${period}`;
+  };
+
+  // Helper function to convert 12-hour format to 24-hour
+  const formatTimeTo24Hour = (time12h) => {
+    if (!time12h) return "";
+
+    // If already in 24-hour format (no AM/PM), return as-is
+    if (!time12h.includes("AM") && !time12h.includes("PM")) {
+      return time12h;
+    }
+
+    const [time, period] = time12h.split(" ");
+    let [hours, minutes] = time.split(":");
+
+    if (period === "PM" && hours !== "12") {
+      hours = String(parseInt(hours, 10) + 12);
+    } else if (period === "AM" && hours === "12") {
+      hours = "00";
+    }
+
+    return `${hours.padStart(2, "0")}:${minutes}`;
   };
 
   const getData = async () => {
@@ -68,6 +91,7 @@ export default function EditPrescription() {
       const response = await fetch(`/api/user/getData/${phoneNumber}`);
       if (!response.ok) throw new Error("Network response was not ok");
       const data = await response.json();
+      console.log(data);
       setUserData(data);
 
       // Find the specific prescription
@@ -88,22 +112,46 @@ export default function EditPrescription() {
         remindersEnabled: foundPrescription.remindersEnabled,
       });
 
-      // Get reminder times for this prescription
-      if (data.medicationSchedule) {
-        const times = data.medicationSchedule
+      // Store original reminder times
+      // Try to get effective times from schedule first (staggered times)
+      let effectiveTimes = [];
+      if (data.medicationSchedule && data.medicationSchedule.length > 0) {
+        const sched = data.medicationSchedule
           .filter((item) => item.prescriptionName === foundPrescription.name)
-          .map((item) => {
-            const date = new Date(item.scheduledTime);
-            // Format to 12-hour format directly
-            return date.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            });
-          });
+          .sort(
+            (a, b) => new Date(a.scheduledTime) - new Date(b.scheduledTime)
+          );
 
-        // Remove duplicates
-        setReminderTimes([...new Set(times)]);
+        if (sched.length > 0) {
+          const firstTime = new Date(sched[0].scheduledTime).getTime();
+          const windowEnd = firstTime + 24 * 60 * 60 * 1000;
+
+          effectiveTimes = sched
+            .filter(
+              (item) => new Date(item.scheduledTime).getTime() < windowEnd
+            )
+            .map((item) => {
+              const date = new Date(item.scheduledTime);
+              return date.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              });
+            });
+          effectiveTimes = [...new Set(effectiveTimes)];
+        }
+      }
+
+      const savedTimes = foundPrescription.reminderTimes || [];
+
+      // Use effective times if available, otherwise saved times
+      // This ensures user sees the ACTUAL scheduled time (e.g. 8:30) not just the base time (8:00)
+      const finalTimes =
+        effectiveTimes.length > 0 ? effectiveTimes : savedTimes;
+
+      if (finalTimes.length > 0) {
+        setOriginalReminderTimes(finalTimes);
+        setReminderTimes(finalTimes.slice(0, foundPrescription.timesToTake));
       }
     } catch (err) {
       setError(err.message);
@@ -134,20 +182,11 @@ export default function EditPrescription() {
     }));
   };
 
-  const handleAddTime = () => {
-    if (newTime) {
-      // Convert the 24-hour time to 12-hour format
-      const formattedTime = formatTimeTo12Hour(newTime);
-
-      if (formattedTime && !reminderTimes.includes(formattedTime)) {
-        setReminderTimes([...reminderTimes, formattedTime]);
-        setNewTime("");
-      }
-    }
-  };
-
-  const handleRemoveTime = (timeToRemove) => {
-    setReminderTimes(reminderTimes.filter((time) => time !== timeToRemove));
+  const handleTimeChange = (index, newTime) => {
+    // Create a new array with the updated time
+    const updatedTimes = [...reminderTimes];
+    updatedTimes[index] = newTime;
+    setReminderTimes(updatedTimes);
   };
 
   const handleSubmit = async (e) => {
@@ -155,42 +194,30 @@ export default function EditPrescription() {
     setSaving(true);
 
     try {
-      // Convert 12-hour times back to 24-hour for the backend
-      const times24 = reminderTimes.map((time) => {
-        const [timePart, period] = time.split(" ");
-        let [hours, minutes] = timePart.split(":");
+      // Convert reminderTimes to 24h format
+      const updatedTimes = reminderTimes.map((time) =>
+        formatTimeTo24Hour(time)
+      );
 
-        if (period === "PM" && hours !== "12") {
-          hours = String(parseInt(hours, 10) + 12);
-        } else if (period === "AM" && hours === "12") {
-          hours = "00";
-        }
-
-        return `${hours.padStart(2, "0")}:${minutes}`;
-      });
+      // Use updated times directly
+      const finalTimes = [...new Set(updatedTimes)];
 
       const response = await fetch(`/api/user/update/${id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
           phoneNumber,
-          reminderTimes: times24,
+          reminderTimes: finalTimes,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to update prescription");
-      }
+      if (!response.ok) throw new Error("Failed to update prescription");
+
+      // Update original times with the new values
+      setOriginalReminderTimes(finalTimes);
 
       toast.success("Changes saved successfully!");
-
-      // Redirect back to dashboard or relative page
-      setTimeout(() => {
-        navigate("/");
-      }, 2000);
     } catch (err) {
       toast.error(err.message || "Failed to save changes.");
       setError(err.message);
@@ -213,9 +240,12 @@ export default function EditPrescription() {
     if (result.isConfirmed) {
       setDeleting(true);
       try {
-        const response = await fetch(`/api/prescription/delete/${id}`, {
-          method: "DELETE",
-        });
+        const response = await fetch(
+          `/api/user/prescription/${phoneNumber}/${id}`,
+          {
+            method: "DELETE",
+          }
+        );
         if (!response.ok) throw new Error("Failed to delete prescription");
 
         toast.success("Prescription tracking has been stopped.");
@@ -261,8 +291,7 @@ export default function EditPrescription() {
         }));
 
         toast.success(
-          `Reminders ${
-            updatedRemindersEnabled ? "resumed" : "paused"
+          `Reminders ${updatedRemindersEnabled ? "resumed" : "paused"
           } successfully!`
         );
       } catch (err) {
@@ -316,6 +345,31 @@ export default function EditPrescription() {
       </div>
     );
   }
+
+  const getMedicationStats = (prescriptionName) => {
+    if (!userData?.medicationSchedule)
+      return { taken: 0, skipped: 0, missed: 0 };
+
+    const taken = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "taken"
+    ).length;
+
+    const skipped = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "skipped"
+    ).length;
+
+    const missed = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "missed"
+    ).length;
+
+    return { taken, skipped, missed };
+  };
+
+  // Calculate stats
+  const { taken, skipped, missed } = prescription ? getMedicationStats(prescription.name) : { taken: 0, skipped: 0, missed: 0 };
 
   return (
     <div className="editing-prescription-container custom-container">
@@ -410,9 +464,8 @@ export default function EditPrescription() {
                 <button
                   type="button"
                   onClick={toggleReminders}
-                  className={`reminders-button ${
-                    formData.remindersEnabled ? "active" : "paused"
-                  } `}
+                  className={`reminders-button ${formData.remindersEnabled ? "active" : "paused"
+                    } `}
                 >
                   {formData.remindersEnabled ? (
                     <>
@@ -429,39 +482,63 @@ export default function EditPrescription() {
               </div>
 
               <div className="input-box">
-                <label className="">Reminder Times</label>
-                <div className="time-input-container">
-                  <input
-                    type="time"
-                    value={newTime}
-                    onChange={(e) => setNewTime(e.target.value)}
-                    className="time-input"
-                  />
-                  <button type="button" onClick={handleAddTime} className="">
-                    Add
+                <div className="times-header">
+                  <label className="">Reminder Times</label>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="times-save-btn"
+                  >
+                    {saving ? (
+                      <>
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Times
+                      </>
+                    )}
                   </button>
                 </div>
-              </div>
-
-              <div className="time-list-container">
-                <label htmlFor="">Selected Times</label>
-                <div className="time-lists">
-                  {reminderTimes.length === 0 ? (
-                    <div className="">No reminder times set</div>
-                  ) : (
-                    reminderTimes.map((time, index) => (
-                      <div key={index} className="time-list">
-                        <span>{time}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTime(time)}
-                          className=""
-                        >
-                          <IoMdClose />
-                        </button>
-                      </div>
-                    ))
-                  )}
+                <div className="time-inputs-container">
+                  {reminderTimes.map((time, index) => (
+                    <div key={index} className="time-input-row">
+                      <Clock size={18} className="clock-icon" />
+                      <input
+                        type="time"
+                        value={formatTimeTo24Hour(time) || ""}
+                        onChange={(e) =>
+                          handleTimeChange(index, e.target.value)
+                        }
+                        className="time-input"
+                      />
+                      {/* change to 12 hour format */}
+                      <span className="time-display">
+                        {formatTimeTo12Hour(time)}
+                      </span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -496,16 +573,22 @@ export default function EditPrescription() {
               <div className="stats taken">
                 <p className="">Taken</p>
                 <p className="value">
-                  {prescription.initialCount - prescription.tracking.pillCount}
+                  {taken}
                 </p>
               </div>
               <div className="stats total">
-                <p className="">Total Count</p>
+                <p className="">Remaining</p>
                 <p className="value">{prescription.tracking.pillCount}</p>
+              </div>
+              <div className="stats missed">
+                <p className="">Missed</p>
+                <p className="value">
+                  {missed}
+                </p>
               </div>
               <div className="stats skipped">
                 <p className="">Skipped</p>
-                <p className="value">{prescription.tracking.skippedCount}</p>
+                <p className="value">{skipped}</p>
               </div>
             </div>
 
@@ -550,9 +633,8 @@ export default function EditPrescription() {
               <button
                 type="button"
                 onClick={toggleReminders}
-                className={` ${
-                  formData.remindersEnabled ? "" : ""
-                } reminder-btn `}
+                className={` ${formData.remindersEnabled ? "" : ""
+                  } reminder-btn `}
               >
                 {formData.remindersEnabled ? (
                   <>

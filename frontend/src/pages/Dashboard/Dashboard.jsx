@@ -1,24 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
-import {
-  CalendarDays,
-  Pill,
-  CheckCircle,
-  AlertTriangle,
-  X,
-  Clock,
-  Info,
-  Pause,
-  Play,
-  Trash2,
-  UserPlus,
-  Users,
-} from "lucide-react";
+import { Pill, X, Users, Clock } from "lucide-react";
 import { IoMdInformationCircleOutline, IoMdClose } from "react-icons/io";
 import { FaRegEdit } from "react-icons/fa";
 import clockIcon from "../../assets/clock-icon.png";
 import "./Dashboard.css";
+import { toast } from "react-toastify";
 
 const Dashboard = () => {
   const { isAuthenticated } = useSelector((state) => state.auth);
@@ -36,6 +24,7 @@ const Dashboard = () => {
   const [newTime, setNewTime] = useState("");
 
   const [showSetupPopup, setShowSetupPopup] = useState(false);
+  const [inputErrors, setInputErrors] = useState({});
 
   const getData = async () => {
     setLoading(true);
@@ -87,6 +76,7 @@ const Dashboard = () => {
           value === "myself" ? userData?.username || "" : prev[id]?.name || "",
       },
     }));
+    setInputErrors((prev) => ({ ...prev, [id]: false }));
   };
 
   const handleNameChange = (id, value) => {
@@ -97,9 +87,26 @@ const Dashboard = () => {
         name: value,
       },
     }));
+    setInputErrors((prev) => ({ ...prev, [id]: false }));
   };
 
   const saveForWho = async () => {
+    const errors = {};
+    let hasError = false;
+
+    Object.entries(forWhoInputs).forEach(([id, input]) => {
+      if (!input.relation || !input.name.trim()) {
+        errors[id] = true;
+        hasError = true;
+      }
+    });
+
+    if (hasError) {
+      setInputErrors(errors);
+      toast.error("Please fill out all required fields.");
+      return;
+    }
+
     setSaving(true);
     try {
       const updatePromises = Object.entries(forWhoInputs).map(([id, data]) => {
@@ -140,6 +147,7 @@ const Dashboard = () => {
     return date.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
     });
   };
 
@@ -168,17 +176,49 @@ const Dashboard = () => {
     });
   };
 
-  const getReminderTimes = (prescriptionId) => {
-    if (!userData?.medicationSchedule) return [];
-    const times = userData.medicationSchedule
-      .filter((item) => item.prescriptionId === prescriptionId)
-      .map((item) => formatTime(item.scheduledTime));
-    return [...new Set(times)];
+  const getReminderTimes = (prescription) => {
+    // Prioritize effective times from schedule (staggered)
+    if (
+      userData?.medicationSchedule &&
+      userData.medicationSchedule.length > 0
+    ) {
+      const sched = userData.medicationSchedule
+        .filter((item) => item.prescriptionName === prescription.name)
+        .sort((a, b) => new Date(a.scheduledTime) - new Date(b.scheduledTime));
+
+      if (sched.length > 0) {
+        const firstTime = new Date(sched[0].scheduledTime).getTime();
+        const windowEnd = firstTime + 24 * 60 * 60 * 1000;
+
+        const times = sched
+          .filter((item) => new Date(item.scheduledTime).getTime() < windowEnd)
+          .map((item) => formatTime(item.scheduledTime));
+
+        return [...new Set(times)];
+      }
+    }
+
+    // Fallback to configured times if available
+    if (prescription.reminderTimes && prescription.reminderTimes.length > 0) {
+      return prescription.reminderTimes.map((t) => {
+        // Format HH:mm to h:mm A
+        const [hours, minutes] = t.split(":");
+        const date = new Date();
+        date.setHours(hours);
+        date.setMinutes(minutes);
+        return date.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+      });
+    }
+
+    return [];
   };
 
   const openDetailsModal = (prescription) => {
     setSelectedPrescription(prescription);
-    console.log(prescription);
     setModalType("details");
   };
 
@@ -187,6 +227,28 @@ const Dashboard = () => {
     setModalType(null);
     setEditableTimes([]);
     setNewTime("");
+  };
+  const getMedicationStats = (prescriptionName) => {
+    if (!userData?.medicationSchedule)
+      return { taken: 0, skipped: 0, missed: 0 };
+
+    const taken = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "taken"
+    ).length;
+    console.log(taken);
+
+    const skipped = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "skipped"
+    ).length;
+
+    const missed = userData.medicationSchedule.filter(
+      (dose) =>
+        dose.prescriptionName === prescriptionName && dose.status === "missed"
+    ).length;
+
+    return { taken, skipped, missed };
   };
 
   if (!isAuthenticated) {
@@ -214,7 +276,6 @@ const Dashboard = () => {
   const myPrescriptions =
     userData.prescriptions?.filter((p) => p.forWho === "myself") || [];
   const caregivers =
-    // eslint-disable-next-line no-constant-binary-expression
     [
       ...new Set(
         userData.prescriptions
@@ -225,17 +286,10 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-container custom-container">
-      <div className="dashboard-header-container">
-        <h1>Medication Dashboard</h1>
-        <p>
-          Real-time pill tracking. Missed doses, taken meds, and daily
-          insights—all in one place.
-        </p>
-      </div>
-
+      {/* ForWho Modal */}
       {showForWhoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50 backdrop-blur-sm transition-opacity">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden transform transition-all">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-6 relative">
               <div className="flex justify-between items-start">
@@ -257,7 +311,7 @@ const Dashboard = () => {
             </div>
 
             {/* Modal Body */}
-            <div className="max-h-[60vh] overflow-y-auto p-6 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
               {userData.prescriptions?.map(
                 (prescription) =>
                   !prescription.forWho && (
@@ -308,7 +362,7 @@ const Dashboard = () => {
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
                             {forWhoInputs[prescription._id]?.relation ===
-                            "myself"
+                              "myself"
                               ? "Your Name"
                               : "Person's Name"}
                           </label>
@@ -318,18 +372,23 @@ const Dashboard = () => {
                             onChange={(e) =>
                               handleNameChange(prescription._id, e.target.value)
                             }
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors"
+                            required
+                            className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${inputErrors[prescription._id]
+                              ? "border-red-500 focus:ring-red-500"
+                              : "border-gray-300 focus:ring-purple-500"
+                              }`}
                             placeholder={
                               forWhoInputs[prescription._id]?.relation ===
-                              "myself"
+                                "myself"
                                 ? "Your full name"
                                 : "Enter full name"
                             }
-                            disabled={
-                              forWhoInputs[prescription._id]?.relation ===
-                              "myself"
-                            }
                           />
+                          {inputErrors[prescription._id] && (
+                            <p className="text-red-500 text-xs mt-1">
+                              Please enter a name.
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -348,159 +407,131 @@ const Dashboard = () => {
               <button
                 onClick={saveForWho}
                 disabled={saving}
-                className={`px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center ${
-                  saving ? "opacity-70 cursor-not-allowed" : ""
-                }`}
+                className={`px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition-colors flex items-center justify-center ${saving ? "opacity-70 cursor-not-allowed" : ""
+                  }`}
               >
-                {saving ? (
-                  <span className="flex items-center">
-                    <svg
-                      className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      ></path>
-                    </svg>
-                    Saving...
-                  </span>
-                ) : (
-                  <span className="flex items-center">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4 mr-1"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    Save Information
-                  </span>
-                )}
+                {saving ? "Saving..." : "Save Information"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {modalType === "details" && selectedPrescription && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h2 className="modal-title">Medication Details</h2>
-              <button onClick={closeModal} className="modal-close-btn">
-                <IoMdClose className="icon" />
-              </button>
-            </div>
-            <div className="medication-modal-details">
-              <div className="medication-modal-details-header">
-                <p className="label">Medication Name</p>
-                <h3>{selectedPrescription?.name}</h3>
-              </div>
-              <div className="doses-container">
-                <div>
-                  <p className="label">Doses per day</p>
-                  <p className="value">{selectedPrescription?.timesToTake}</p>
-                </div>
-                <div>
-                  <p className="label">Next Dose</p>
-                  <p className="value">
-                    {getNextDose(selectedPrescription?.name)}
-                  </p>
-                </div>
-              </div>
-              <div>
-                <p className="label">Reminder Times</p>
-                <div className="tags-container">
-                  {getReminderTimes(selectedPrescription?._id).map(
-                    (time, index) => (
-                      <span key={index} className="tag">
-                        {time}
-                      </span>
-                    )
-                  )}
-                </div>
-              </div>
-              <div className="stats-container">
-                <div className="stat-box stat-green">
-                  <p className="label">Taken</p>
-                  <p className="stat-value">
-                    {selectedPrescription.initialCount -
-                      selectedPrescription.tracking.pillCount}
-                  </p>
-                </div>
-                <div className="stat-box stat-yellow">
-                  <p className="label">Total Count</p>
-                  <p className="stat-value">
-                    {selectedPrescription?.tracking.pillCount}
-                  </p>
-                </div>
-                <div className="stat-box stat-red">
-                  <p className="label">Skipped</p>
-                  <p className="stat-value">
-                    {selectedPrescription.tracking.skippedCount}
-                  </p>
-                </div>
-              </div>
-              <div>
-                <p className="label">Instructions</p>
-                <p className="info-box">
-                  {selectedPrescription?.instructions ||
-                    "No specific instructions provided."}
-                </p>
-              </div>
-              <div>
-                <p className="label">Side Effects</p>
-                <p className="info-box">
-                  {selectedPrescription?.sideEffects ||
-                    "No significant side effects reported."}
-                </p>
-              </div>
-            </div>
-            <div className="">
-              <button onClick={closeModal} className="modal-footer-close-btn">
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Details Modal */}
+      {modalType === "details" &&
+        selectedPrescription &&
+        (() => {
+          // calculate stats safely when modal is open
+          const { taken, skipped, missed } = getMedicationStats(
+            selectedPrescription.name
+          );
+          const remaining = selectedPrescription.initialCount - taken;
 
+          return (
+            <div className="relative-container">
+              <div className="modal-overlay">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <h2 className="modal-title">Medication Details</h2>
+                    <button onClick={closeModal} className="modal-close-btn">
+                      <IoMdClose className="icon" />
+                    </button>
+                  </div>
+
+                  <div className="medication-modal-details">
+                    <div className="medication-modal-details-header">
+                      <h3>{selectedPrescription.name}</h3>
+                      <p>For: ({selectedPrescription.forWho})</p>
+                    </div>
+
+                    <div className="doses-container">
+                      <div>
+                        <p className="label">Doses per day</p>
+                        <p className="value">
+                          {selectedPrescription.timesToTake}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="label">Next Dose</p>
+                        <p className="value">
+                          {getNextDose(selectedPrescription.name)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="reminder-times-container">
+                      <p className="label">Reminder Times</p>
+                      <div className="reminder-times">
+                        {getReminderTimes(selectedPrescription).map(
+                          (time, index) => (
+                            <div key={index} className="reminder-time">
+                              {time}
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="stats-container">
+                      <div className="stat-box stat-green">
+                        <p className="label">Taken</p>
+                        <p className="stat-value">{taken}</p>
+                      </div>
+                      <div className="stat-box stat-yellow">
+                        <p className="label">Remaining</p>
+                        <p className="stat-value">
+                          {selectedPrescription.tracking.pillCount}
+                        </p>
+                      </div>
+                      <div className="stat-box stat-red">
+                        <p className="label">Missed</p>
+                        <p className="stat-value">{missed}</p>
+                      </div>
+                      <div className="stat-box stat-red">
+                        <p className="label">Skipped</p>
+                        <p className="stat-value">
+                          {skipped}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="label">Instructions</p>
+                      <p className="info-box">
+                        {selectedPrescription.instructions ||
+                          "No specific instructions provided."}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="label">Side Effects</p>
+                      <p className="info-box">
+                        {selectedPrescription.sideEffects ||
+                          "No significant side effects reported."}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* My Medications */}
       <div className="dashboard-top-container">
-        {/*      {/* My Medications Section */}
         <div className="section-container">
           <h2 className="section-title">My Medications</h2>
           {myPrescriptions.length === 0 ? (
             <div className="empty-state">
               <h3 className="empty-state-title">No medications found</h3>
-              {/* <p className="empty-state-subtitle">
-                Add your first medication to get started
-              </p> */}
             </div>
           ) : (
             <div className="my-medications-container">
               {myPrescriptions.map((prescription) => (
                 <div
                   key={prescription._id}
-                  className={`prescription-card ${
-                    prescription.remindersEnabled ? "active" : "paused"
-                  }`}
+                  className={`prescription-card ${prescription.remindersEnabled ? "active" : "paused"
+                    }`}
                 >
                   <div className="prescription-card-body">
                     <div className="prescription-card-header">
@@ -509,11 +540,10 @@ const Dashboard = () => {
                           {prescription.name}
                         </h3>
                         <div
-                          className={`prescription-card-activity ${
-                            prescription.remindersEnabled
-                              ? "status-green"
-                              : "status-yellow"
-                          }`}
+                          className={`prescription-card-activity ${prescription.remindersEnabled
+                            ? "status-green"
+                            : "status-yellow"
+                            }`}
                         >
                           {prescription.remindersEnabled ? "Active" : "Paused"}
                         </div>
@@ -546,7 +576,6 @@ const Dashboard = () => {
                         to={`/prescription/edit/${prescription._id}`}
                         className="card-link"
                       >
-                        {/* Edit */}
                         <FaRegEdit className="icon edit" />
                       </Link>
                     </div>
@@ -557,15 +586,12 @@ const Dashboard = () => {
           )}
         </div>
 
-        {/*      {/* My Care Circle Section */}
+        {/* My Care Circle */}
         <div className="section-container">
           <h2 className="section-title">My Care Circle</h2>
           {caregivers.length === 0 ? (
             <div className="empty-state">
               <h3 className="empty-state-title">No family members added</h3>
-              {/* <p className="empty-state-subtitle">
-                Add family members to manage their medications
-              </p> */}
             </div>
           ) : (
             <div className="caregivers-container">

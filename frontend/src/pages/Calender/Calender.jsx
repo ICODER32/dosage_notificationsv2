@@ -29,7 +29,6 @@ const CalendarPage = () => {
   useEffect(() => {
     if (!userData || !userData.medicationSchedule) return;
 
-    // Process calendar data with timezone handling
     const data = {
       daily: processDailyData(),
       weekly: processWeeklyData(),
@@ -43,136 +42,102 @@ const CalendarPage = () => {
     return userData?.timezone || "UTC";
   };
 
-  // Convert UTC time to user's local time
-  const toUserTime = (utcTime) => {
-    return moment(utcTime).tz(getUserTimezone());
-  };
+  // Normalize all events into user timezone and correct status
+  const normalizeEvents = (schedule, userTz, notifications) => {
+    const now = moment().tz(userTz);
 
-  const getCombinedStatus = (scheduleEntry, userTz) => {
-    // Use schedule status if it's already taken/skipped
-    if (
-      scheduleEntry.status === "taken" ||
-      scheduleEntry.status === "skipped"
-    ) {
-      return scheduleEntry.status;
-    }
+    return schedule.map((entry) => {
+      const userScheduledTime = moment(entry.scheduledTime).tz(userTz);
 
-    // Find matching notification
-    const userScheduledTime = moment(scheduleEntry.scheduledTime).tz(userTz);
-    const notification = userData.notificationHistory.find((notif) => {
-      const notifTime = moment(notif.sentAt).tz(userTz);
-      return (
-        notif.medications.includes(scheduleEntry.prescriptionName) &&
-        notifTime.isSame(userScheduledTime, "hour") &&
-        notifTime.isSame(userScheduledTime, "day")
-      );
+      // Find matching notification
+      const notification = notifications.find((notif) => {
+        const notifTime = moment(notif.sentAt).tz(userTz);
+        return (
+          notif.medications.includes(entry.prescriptionName) &&
+          notifTime.isSame(userScheduledTime, "minute")
+        );
+      });
+
+      let status = entry.status || "pending";
+      if (notification) status = notification.status;
+
+      // If still pending, decide missed or pending
+      if (status === "pending") {
+        if (userScheduledTime.isBefore(now)) status = "missed";
+      }
+
+      return {
+        ...entry,
+        userScheduledTime,
+        formattedTime: userScheduledTime.format("h:mm A"),
+        status,
+      };
     });
-
-    return notification ? notification.status : scheduleEntry.status;
   };
 
-  // Process data for daily view
+  // Daily view
   const processDailyData = () => {
     const userTz = getUserTimezone();
-    const nowInUserTz = moment().tz(userTz);
     const userCurrentDate = currentDate.clone().tz(userTz);
     const dayStart = userCurrentDate.clone().startOf("day");
     const dayEnd = userCurrentDate.clone().endOf("day");
 
-    const dayEvents = userData.medicationSchedule
-      .filter((entry) => {
-        const userScheduledTime = toUserTime(entry.scheduledTime);
-        return userScheduledTime.isBetween(dayStart, dayEnd, null, "[]");
-      })
-      .map((entry) => {
-        const userScheduledTime = toUserTime(entry.scheduledTime);
-        const status = getCombinedStatus(entry, userTz);
-
-        return {
-          ...entry,
-          userScheduledTime,
-          formattedTime: userScheduledTime.format("h:mm A"),
-          status, // Use combined status
-        };
-      });
-
-    const taken = dayEvents.filter((e) => e.status === "taken");
-    const skipped = dayEvents.filter((e) => e.status === "skipped");
-
-    // Missed: pending AND in the past (in user's timezone)
-    const missed = dayEvents.filter(
-      (e) => e.status === "pending" && e.userScheduledTime.isBefore(nowInUserTz)
+    const events = normalizeEvents(
+      userData.medicationSchedule,
+      userTz,
+      userData.notificationHistory || []
+    ).filter((e) =>
+      e.userScheduledTime.isBetween(dayStart, dayEnd, null, "[]")
     );
 
-    // Pending: pending AND in the future (in user's timezone)
-    const pending = dayEvents.filter(
-      (e) => e.status === "pending" && e.userScheduledTime.isAfter(nowInUserTz)
-    );
-
-    const missedMeds = [...new Set(missed.map((m) => m.prescriptionName))];
+    const taken = events.filter((e) => e.status === "taken");
+    const missed = events.filter((e) => e.status === "missed");
+    const skipped = events.filter((e) => e.status === "skipped");
+    const pending = events.filter((e) => e.status === "pending");
 
     return {
       date: userCurrentDate.format("dddd, MMMM D"),
-      totalPills: dayEvents.length,
+      userCurrentDate,
+      totalPills: events.length,
       takenCount: taken.length,
       missedCount: missed.length,
       skippedCount: skipped.length,
       pendingCount: pending.length,
-      missedMeds,
-      events: dayEvents,
-      userCurrentDate,
+      missedMeds: [...new Set(missed.map((m) => m.prescriptionName))],
+      events,
     };
   };
 
-  // Process data for weekly view
+  // Weekly view
   const processWeeklyData = () => {
     const userTz = getUserTimezone();
-    const nowInUserTz = moment().tz(userTz);
     const userCurrentDate = currentDate.clone().tz(userTz);
     const startOfWeek = userCurrentDate.clone().startOf("isoWeek");
     const endOfWeek = userCurrentDate.clone().endOf("isoWeek");
 
-    const weekEvents = userData.medicationSchedule
-      .filter((entry) => {
-        const userScheduledTime = toUserTime(entry.scheduledTime);
-        return userScheduledTime.isBetween(startOfWeek, endOfWeek, "day", "[]");
-      })
-      .map((entry) => {
-        const userScheduledTime = toUserTime(entry.scheduledTime);
-        const status = getCombinedStatus(entry, userTz);
-
-        return {
-          ...entry,
-          userScheduledTime,
-          status,
-        };
-      });
+    const events = normalizeEvents(
+      userData.medicationSchedule,
+      userTz,
+      userData.notificationHistory || []
+    ).filter((e) =>
+      e.userScheduledTime.isBetween(startOfWeek, endOfWeek, "day", "[]")
+    );
 
     const days = [];
     let currentDay = startOfWeek.clone();
-
     while (currentDay.isSameOrBefore(endOfWeek)) {
-      const dayEvents = weekEvents.filter((entry) =>
-        entry.userScheduledTime.isSame(currentDay, "day")
+      const dayEvents = events.filter((e) =>
+        e.userScheduledTime.isSame(currentDay, "day")
       );
 
       let status = "empty";
-      if (dayEvents.length > 0) {
-        const hasMissed = dayEvents.some(
-          (e) =>
-            e.status === "pending" && e.userScheduledTime.isBefore(nowInUserTz)
-        );
-        const hasSkipped = dayEvents.some((e) => e.status === "skipped");
-        const hasPending = dayEvents.some(
-          (e) =>
-            e.status === "pending" && e.userScheduledTime.isAfter(nowInUserTz)
-        );
-        const allTaken = dayEvents.every((e) => e.status === "taken");
-
-        if (hasMissed) status = "missed";
-        else if (hasSkipped) status = "skipped";
-        else if (hasPending) status = "pending";
-        else if (allTaken) status = "taken";
+      if (dayEvents.length) {
+        if (dayEvents.some((e) => e.status === "missed")) status = "missed";
+        else if (dayEvents.some((e) => e.status === "skipped"))
+          status = "skipped";
+        else if (dayEvents.some((e) => e.status === "pending"))
+          status = "pending";
+        else if (dayEvents.every((e) => e.status === "taken")) status = "taken";
       }
 
       days.push({
@@ -185,52 +150,30 @@ const CalendarPage = () => {
       currentDay.add(1, "day");
     }
 
-    const takenCount = weekEvents.filter((e) => e.status === "taken").length;
-    const missedCount = weekEvents.filter(
-      (e) => e.status === "pending" && e.userScheduledTime.isBefore(nowInUserTz)
-    ).length;
-    const skippedCount = weekEvents.filter(
-      (e) => e.status === "skipped"
-    ).length;
-
     return {
       range: `${startOfWeek.format("MMM D")} - ${endOfWeek.format("MMM D")}`,
       days,
-      totalPills: weekEvents.length,
-      takenCount,
-      missedCount,
-      skippedCount,
+      totalPills: events.length,
+      takenCount: events.filter((e) => e.status === "taken").length,
+      missedCount: events.filter((e) => e.status === "missed").length,
+      skippedCount: events.filter((e) => e.status === "skipped").length,
     };
   };
 
-  // Process data for monthly view
+  // Monthly view
   const processMonthlyData = () => {
     const userTz = getUserTimezone();
-    const nowInUserTz = moment().tz(userTz);
     const userCurrentDate = currentDate.clone().tz(userTz);
     const startOfMonth = userCurrentDate.clone().startOf("month");
     const endOfMonth = userCurrentDate.clone().endOf("month");
 
-    const monthEvents = userData.medicationSchedule
-      .filter((entry) => {
-        const userScheduledTime = toUserTime(entry.scheduledTime);
-        return userScheduledTime.isBetween(
-          startOfMonth,
-          endOfMonth,
-          "day",
-          "[]"
-        );
-      })
-      .map((entry) => {
-        const userScheduledTime = toUserTime(entry.scheduledTime);
-        const status = getCombinedStatus(entry, userTz);
-
-        return {
-          ...entry,
-          userScheduledTime,
-          status,
-        };
-      });
+    const events = normalizeEvents(
+      userData.medicationSchedule,
+      userTz,
+      userData.notificationHistory || []
+    ).filter((e) =>
+      e.userScheduledTime.isBetween(startOfMonth, endOfMonth, "day", "[]")
+    );
 
     const weeks = [];
     let currentDay = startOfMonth.clone().startOf("isoWeek");
@@ -238,30 +181,20 @@ const CalendarPage = () => {
 
     while (currentDay.isSameOrBefore(endDay)) {
       const week = [];
-
       for (let i = 0; i < 7; i++) {
-        const dayEvents = monthEvents.filter((entry) =>
-          entry.userScheduledTime.isSame(currentDay, "day")
+        const dayEvents = events.filter((e) =>
+          e.userScheduledTime.isSame(currentDay, "day")
         );
 
         let status = "empty";
-        if (dayEvents.length > 0) {
-          const hasMissed = dayEvents.some(
-            (e) =>
-              e.status === "pending" &&
-              e.userScheduledTime.isBefore(nowInUserTz)
-          );
-          const hasSkipped = dayEvents.some((e) => e.status === "skipped");
-          const hasPending = dayEvents.some(
-            (e) =>
-              e.status === "pending" && e.userScheduledTime.isAfter(nowInUserTz)
-          );
-          const allTaken = dayEvents.every((e) => e.status === "taken");
-
-          if (hasMissed) status = "missed";
-          else if (hasSkipped) status = "skipped";
-          else if (hasPending) status = "pending";
-          else if (allTaken) status = "taken";
+        if (dayEvents.length) {
+          if (dayEvents.some((e) => e.status === "missed")) status = "missed";
+          else if (dayEvents.some((e) => e.status === "skipped"))
+            status = "skipped";
+          else if (dayEvents.some((e) => e.status === "pending"))
+            status = "pending";
+          else if (dayEvents.every((e) => e.status === "taken"))
+            status = "taken";
         }
 
         week.push({
@@ -273,25 +206,16 @@ const CalendarPage = () => {
 
         currentDay.add(1, "day");
       }
-
       weeks.push(week);
     }
-
-    const takenCount = monthEvents.filter((e) => e.status === "taken").length;
-    const missedCount = monthEvents.filter(
-      (e) => e.status === "pending" && e.userScheduledTime.isBefore(nowInUserTz)
-    ).length;
-    const skippedCount = monthEvents.filter(
-      (e) => e.status === "skipped"
-    ).length;
 
     return {
       month: userCurrentDate.format("MMMM YYYY"),
       weeks,
-      totalPills: monthEvents.length,
-      takenCount,
-      missedCount,
-      skippedCount,
+      totalPills: events.length,
+      takenCount: events.filter((e) => e.status === "taken").length,
+      missedCount: events.filter((e) => e.status === "missed").length,
+      skippedCount: events.filter((e) => e.status === "skipped").length,
     };
   };
 
@@ -322,11 +246,30 @@ const CalendarPage = () => {
         </div>
 
         <div className="calender-nav-controls">
-          <button onClick={handlePrev} className="">
-            &larr; Prev
+          <button onClick={handlePrev}>
+            &larr;{" "}
+            {currentView === "daily"
+              ? "Prev Day"
+              : currentView === "weekly"
+              ? "Prev Week"
+              : "Prev Month"}
           </button>
-          <button onClick={handleNext} className="">
-            Next &rarr;
+
+          <button onClick={handleToday}>
+            {currentView === "daily"
+              ? "Today"
+              : currentView === "weekly"
+              ? "This Week"
+              : "This Month"}
+          </button>
+
+          <button onClick={handleNext}>
+            {currentView === "daily"
+              ? "Next Day"
+              : currentView === "weekly"
+              ? "Next Week"
+              : "Next Month"}{" "}
+            &rarr;
           </button>
         </div>
       </div>
@@ -339,54 +282,40 @@ const CalendarPage = () => {
           </div>
         ) : (
           <div className="calender-content">
-            <div>
-              <div className="">
-                <div className="view-selector-btns" role="group">
-                  <button
-                    type="button"
-                    className={` ${
-                      currentView === "daily" ? "day-active" : ""
-                    }`}
-                    onClick={() => setCurrentView("daily")}
-                  >
-                    Daily
-                  </button>
-                  <button
-                    type="button"
-                    className={` ${
-                      currentView === "weekly" ? "week-active" : ""
-                    }`}
-                    onClick={() => setCurrentView("weekly")}
-                  >
-                    Weekly
-                  </button>
-                  <button
-                    type="button"
-                    className={` ${
-                      currentView === "monthly" ? "month-active" : ""
-                    }`}
-                    onClick={() => setCurrentView("monthly")}
-                  >
-                    Monthly
-                  </button>
-                </div>
-              </div>
-
-              {currentView === "daily" && (
-                <DailyView data={calendarData.daily} />
-              )}
-
-              {currentView === "weekly" && (
-                <WeeklyView data={calendarData.weekly} />
-              )}
-
-              {currentView === "monthly" && (
-                <MonthlyView data={calendarData.monthly} />
-              )}
+            <div className="view-selector-btns" role="group">
+              <button
+                type="button"
+                className={`${currentView === "daily" ? "day-active" : ""}`}
+                onClick={() => setCurrentView("daily")}
+              >
+                Daily
+              </button>
+              <button
+                type="button"
+                className={`${currentView === "weekly" ? "week-active" : ""}`}
+                onClick={() => setCurrentView("weekly")}
+              >
+                Weekly
+              </button>
+              <button
+                type="button"
+                className={`${currentView === "monthly" ? "month-active" : ""}`}
+                onClick={() => setCurrentView("monthly")}
+              >
+                Monthly
+              </button>
             </div>
 
+            {currentView === "daily" && <DailyView data={calendarData.daily} />}
+            {currentView === "weekly" && (
+              <WeeklyView data={calendarData.weekly} />
+            )}
+            {currentView === "monthly" && (
+              <MonthlyView data={calendarData.monthly} />
+            )}
+
             <div className="legend-container">
-              <h3 className="">Legend</h3>
+              <h3>Legend</h3>
               <div className="legends">
                 <div className="legend">
                   <div className="legend-icon taken"></div>
@@ -423,67 +352,54 @@ const DailyView = ({ data }) => {
 
       <div className="daily-view-contents">
         <div className="daily-view-contents-left">
-          {data.events.map((event, index) => {
-            // Determine display status
-            let displayStatus = event.status;
-            if (
-              event.status === "pending" &&
-              event.userScheduledTime.isBefore(moment())
-            ) {
-              displayStatus = "missed";
-            }
-
-            return (
-              <div key={index} className="daily-pill-info-box">
-                <div className="daily-pill-info-box-left">
-                  <div className={`pill-status-circle ${displayStatus}`}></div>
-                  <div>
-                    <h3 className="">{event.prescriptionName}</h3>
-                    <p className="time">{event.formattedTime}</p>
-                  </div>
-                </div>
-                <div className={`pill-status ${displayStatus}`}>
-                  {displayStatus.charAt(0).toUpperCase() +
-                    displayStatus.slice(1)}
+          {data.events.map((event, index) => (
+            <div key={index} className="daily-pill-info-box">
+              <div className="daily-pill-info-box-left">
+                <div className={`pill-status-circle ${event.status}`}></div>
+                <div>
+                  <h3>{event.prescriptionName}</h3>
+                  <p className="time">{event.formattedTime}</p>
                 </div>
               </div>
-            );
-          })}
+              <div className={`pill-status ${event.status}`}>
+                {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+              </div>
+            </div>
+          ))}
         </div>
 
         <div className="daily-view-contents-right">
-          <div>
-            <div className="daily-view-contents-right-top">
-              <div className="total-pills">
-                <h3 className="">{data.totalPills}</h3>
-                <p className="">Total Pills</p>
-              </div>
-              <div className="taken-pills">
-                <h3 className="">{data.takenCount}</h3>
-                <p className="">Taken</p>
+          <div className="daily-view-contents-right-top">
+            <div className="total-pills">
+              <h3>{data.totalPills}</h3>
+              <p>Total Pills</p>
+            </div>
+            <div className="taken-pills">
+              <h3>{data.takenCount}</h3>
+              <p>Taken</p>
+            </div>
+            <div className="missed-pills">
+              <h3>{data.missedCount}</h3>
+              <p>Missed</p>
+            </div>
+            <div className="skipped-pills">
+              <h3>{data.skippedCount}</h3>
+              <p>Skipped</p>
+            </div>
+          </div>
+
+          {data.missedCount > 0 && (
+            <div className="daily-view-missed-meds">
+              <p className="missed-pills-title">Today's missed medicines</p>
+              <div className="missed-pills-boxes">
+                {data.missedMeds.map((med, index) => (
+                  <div key={index} className="missed-pill-box">
+                    {med}
+                  </div>
+                ))}
               </div>
             </div>
-
-            <p className="today-date-pills">
-              {data.userCurrentDate.format("dddd")} – {data.takenCount} of{" "}
-              {data.totalPills} pills taken
-            </p>
-          </div>
-
-          <div className="">
-            {data.missedCount > 0 && (
-              <div className="daily-view-missed-meds">
-                <p className="missed-pills-title">Today's missed Medicines</p>
-                <div className="missed-pills-boxes">
-                  {data.missedMeds.map((med, index) => (
-                    <div key={index} className="missed-pill-box">
-                      {med}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -512,20 +428,20 @@ const WeeklyView = ({ data }) => {
         <div className="daily-view-contents-right">
           <div className="weekly-view-contents-right-top">
             <div className="total-pills">
-              <h3 className="">{data.totalPills}</h3>
-              <p className="">Total Pills</p>
+              <h3>{data.totalPills}</h3>
+              <p>Total Pills</p>
             </div>
             <div className="total-taken">
-              <h3 className="">{data.takenCount}</h3>
-              <p className="">Taken</p>
+              <h3>{data.takenCount}</h3>
+              <p>Taken</p>
             </div>
             <div className="total-missed">
-              <h3 className="">{data.missedCount}</h3>
-              <p className="">Missed</p>
+              <h3>{data.missedCount}</h3>
+              <p>Missed</p>
             </div>
             <div className="total-skipped">
-              <h3 className="">{data.skippedCount}</h3>
-              <p className="">Skipped</p>
+              <h3>{data.skippedCount}</h3>
+              <p>Skipped</p>
             </div>
           </div>
         </div>
@@ -534,6 +450,7 @@ const WeeklyView = ({ data }) => {
   );
 };
 
+// Monthly View Component
 // Monthly View Component
 const MonthlyView = ({ data }) => {
   if (!data) return null;
@@ -544,14 +461,6 @@ const MonthlyView = ({ data }) => {
 
       <div className="daily-view-contents">
         <div className="monthly-view-contents-left">
-          <div className="monthly-view-contents-left-top">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
-              <div key={day} className="date">
-                {day}
-              </div>
-            ))}
-          </div>
-
           <div className="monthly-view-contents-left-bottom">
             {data.weeks.map((week, weekIndex) => (
               <div key={weekIndex} className="monthly-pill-info-boxes">
@@ -562,7 +471,13 @@ const MonthlyView = ({ data }) => {
                       day.inMonth ? "" : "not-in-month"
                     }`}
                   >
+                    {/* Show weekday + date in each box */}
+                    <div className="monthly-day">
+                      {day.date.format("ddd")} {/* e.g., Mon, Tue */}
+                    </div>
                     <div className="monthly-date">{day.date.format("D")}</div>
+
+                    {/* Status indicator */}
                     <div className={`status-label ${day.status}`}></div>
                   </div>
                 ))}
@@ -574,20 +489,20 @@ const MonthlyView = ({ data }) => {
         <div className="daily-view-contents-right">
           <div className="weekly-view-contents-right-top">
             <div className="total-pills">
-              <h3 className="">{data.totalPills}</h3>
-              <p className="">Total Pills</p>
+              <h3>{data.totalPills}</h3>
+              <p>Total Pills</p>
             </div>
             <div className="total-taken">
-              <h3 className="">{data.takenCount}</h3>
-              <p className="">Taken</p>
+              <h3>{data.takenCount}</h3>
+              <p>Taken</p>
             </div>
             <div className="total-missed">
-              <h3 className="">{data.missedCount}</h3>
-              <p className="">Missed</p>
+              <h3>{data.missedCount}</h3>
+              <p>Missed</p>
             </div>
             <div className="total-skipped">
-              <h3 className="">{data.skippedCount}</h3>
-              <p className="">Skipped</p>
+              <h3>{data.skippedCount}</h3>
+              <p>Skipped</p>
             </div>
           </div>
         </div>

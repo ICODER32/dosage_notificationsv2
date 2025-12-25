@@ -39,8 +39,8 @@ const prescriptionSchema = new mongoose.Schema({
   },
   username: {
     type: String,
-    default: "",
   },
+
   timesToTake: {
     type: Number,
     required: true,
@@ -86,6 +86,11 @@ const prescriptionSchema = new mongoose.Schema({
       min: 0,
     },
   },
+  finishedNotified: {
+    type: Boolean,
+    default: false,
+  },
+  reminderTimes: [String],
 });
 
 const userSchema = new mongoose.Schema({
@@ -100,6 +105,9 @@ const userSchema = new mongoose.Schema({
       },
       message: (props) => `${props.value} is not a valid phone number!`,
     },
+  },
+  username: {
+    type: String,
   },
   notificationType: {
     type: String,

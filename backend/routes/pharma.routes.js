@@ -80,7 +80,7 @@ Reply STOP to unsubscribe at any time.
         from: process.env.TWILIO_PHONE_NUMBER,
         to: `+${phoneNumber}`,
       });
-      console.log(message1);
+      console.log(message);
     } catch (err) {
       console.log(err);
     }
