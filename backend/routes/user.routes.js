@@ -347,20 +347,21 @@ router.post("/sms/reply", async (req, res) => {
       let needsSave = false;
 
       const medList = enabledMeds.map((p, i) => {
-        let displayTimes = [];
+        let medTimes = [];
 
         // 1. Try to get effective times from schedule
         if (user.medicationSchedule && user.medicationSchedule.length > 0) {
-          const sched = user.medicationSchedule
+          medTimes = user.medicationSchedule
             .filter((item) => item.prescriptionName === p.name)
             .map((item) =>
               moment(item.scheduledTime).tz(userTimezone).format("h:mm A")
             );
+        }
 
-          const uniqueTimes = [...new Set(medTimes)];
-          return `${i + 1}. ${p.name} (Current times: ${uniqueTimes.join(", ") || "not set"
-            })`;
-        })
+        const uniqueTimes = [...new Set(medTimes)];
+        return `${i + 1}. ${p.name} (Current times: ${uniqueTimes.join(", ") || "not set"
+          })`;
+      })
         .join("\n");
 
       reply = `Which pill would you like to set a custom time for?\nReply with a number:\n${medList.join("\n")}\n(Type the number of the pill you want to change.)`;
@@ -370,6 +371,7 @@ router.post("/sms/reply", async (req, res) => {
       handled = true;
     }
   }
+
 
   if (!handled && lowerMsg === "pause") {
     if (user.prescriptions.length === 0) {

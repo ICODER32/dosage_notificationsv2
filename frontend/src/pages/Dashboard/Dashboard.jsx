@@ -232,21 +232,29 @@ const Dashboard = () => {
     if (!userData?.medicationSchedule)
       return { taken: 0, skipped: 0, missed: 0 };
 
-    const taken = userData.medicationSchedule.filter(
-      (dose) =>
-        dose.prescriptionName === prescriptionName && dose.status === "taken"
-    ).length;
-    console.log(taken);
+    const prescription = userData.prescriptions?.find(
+      (p) => p.name === prescriptionName
+    );
+    const dosage = prescription?.dosage || 1;
 
-    const skipped = userData.medicationSchedule.filter(
-      (dose) =>
-        dose.prescriptionName === prescriptionName && dose.status === "skipped"
-    ).length;
+    const taken =
+      userData.medicationSchedule.filter(
+        (dose) =>
+          dose.prescriptionName === prescriptionName && dose.status === "taken"
+      ).length * dosage;
 
-    const missed = userData.medicationSchedule.filter(
-      (dose) =>
-        dose.prescriptionName === prescriptionName && dose.status === "missed"
-    ).length;
+    const skipped =
+      userData.medicationSchedule.filter(
+        (dose) =>
+          dose.prescriptionName === prescriptionName &&
+          dose.status === "skipped"
+      ).length * dosage;
+
+    const missed =
+      userData.medicationSchedule.filter(
+        (dose) =>
+          dose.prescriptionName === prescriptionName && dose.status === "missed"
+      ).length * dosage;
 
     return { taken, skipped, missed };
   };

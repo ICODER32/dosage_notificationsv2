@@ -95,14 +95,24 @@ const CalendarPage = () => {
     const skipped = events.filter((e) => e.status === "skipped");
     const pending = events.filter((e) => e.status === "pending");
 
+    const getEventDosage = (event) => {
+      const p = userData?.prescriptions?.find(
+        (p) => p.name === event.prescriptionName
+      );
+      return p?.dosage || 1;
+    };
+
+    const countPills = (list) =>
+      list.reduce((acc, e) => acc + getEventDosage(e), 0);
+
     return {
       date: userCurrentDate.format("dddd, MMMM D"),
       userCurrentDate,
-      totalPills: events.length,
-      takenCount: taken.length,
-      missedCount: missed.length,
-      skippedCount: skipped.length,
-      pendingCount: pending.length,
+      totalPills: countPills(events),
+      takenCount: countPills(taken),
+      missedCount: countPills(missed),
+      skippedCount: countPills(skipped),
+      pendingCount: countPills(pending),
       missedMeds: [...new Set(missed.map((m) => m.prescriptionName))],
       events,
     };
@@ -150,13 +160,23 @@ const CalendarPage = () => {
       currentDay.add(1, "day");
     }
 
+    const getEventDosage = (event) => {
+      const p = userData?.prescriptions?.find(
+        (p) => p.name === event.prescriptionName
+      );
+      return p?.dosage || 1;
+    };
+
+    const countPills = (list) =>
+      list.reduce((acc, e) => acc + getEventDosage(e), 0);
+
     return {
       range: `${startOfWeek.format("MMM D")} - ${endOfWeek.format("MMM D")}`,
       days,
-      totalPills: events.length,
-      takenCount: events.filter((e) => e.status === "taken").length,
-      missedCount: events.filter((e) => e.status === "missed").length,
-      skippedCount: events.filter((e) => e.status === "skipped").length,
+      totalPills: countPills(events),
+      takenCount: countPills(events.filter((e) => e.status === "taken")),
+      missedCount: countPills(events.filter((e) => e.status === "missed")),
+      skippedCount: countPills(events.filter((e) => e.status === "skipped")),
     };
   };
 
@@ -209,13 +229,23 @@ const CalendarPage = () => {
       weeks.push(week);
     }
 
+    const getEventDosage = (event) => {
+      const p = userData?.prescriptions?.find(
+        (p) => p.name === event.prescriptionName
+      );
+      return p?.dosage || 1;
+    };
+
+    const countPills = (list) =>
+      list.reduce((acc, e) => acc + getEventDosage(e), 0);
+
     return {
       month: userCurrentDate.format("MMMM YYYY"),
       weeks,
-      totalPills: events.length,
-      takenCount: events.filter((e) => e.status === "taken").length,
-      missedCount: events.filter((e) => e.status === "missed").length,
-      skippedCount: events.filter((e) => e.status === "skipped").length,
+      totalPills: countPills(events),
+      takenCount: countPills(events.filter((e) => e.status === "taken")),
+      missedCount: countPills(events.filter((e) => e.status === "missed")),
+      skippedCount: countPills(events.filter((e) => e.status === "skipped")),
     };
   };
 
@@ -251,24 +281,24 @@ const CalendarPage = () => {
             {currentView === "daily"
               ? "Prev Day"
               : currentView === "weekly"
-              ? "Prev Week"
-              : "Prev Month"}
+                ? "Prev Week"
+                : "Prev Month"}
           </button>
 
           <button onClick={handleToday}>
             {currentView === "daily"
               ? "Today"
               : currentView === "weekly"
-              ? "This Week"
-              : "This Month"}
+                ? "This Week"
+                : "This Month"}
           </button>
 
           <button onClick={handleNext}>
             {currentView === "daily"
               ? "Next Day"
               : currentView === "weekly"
-              ? "Next Week"
-              : "Next Month"}{" "}
+                ? "Next Week"
+                : "Next Month"}{" "}
             &rarr;
           </button>
         </div>
@@ -467,9 +497,8 @@ const MonthlyView = ({ data }) => {
                 {week.map((day, dayIndex) => (
                   <div
                     key={dayIndex}
-                    className={`monthly-pill-info-box ${
-                      day.inMonth ? "" : "not-in-month"
-                    }`}
+                    className={`monthly-pill-info-box ${day.inMonth ? "" : "not-in-month"
+                      }`}
                   >
                     {/* Show weekday + date in each box */}
                     <div className="monthly-day">
