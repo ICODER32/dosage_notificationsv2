@@ -860,11 +860,11 @@ For more details and history, please visit your dashboard: ${process.env.DASHBOA
 // Helper function to send messages
 async function sendMessage(phone, message) {
   try {
-    // await client.messages.create({
-    //   body: message,
-    //   from: process.env.TWILIO_PHONE_NUMBER,
-    //   to: `+${phone}`, // Use SMS format if needed
-    // });
+    await client.messages.create({
+      body: message,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: `+${phone}`, // Use SMS format if needed
+    });
     console.log(message);
     console.log(`Message sent to ${phone}: ${message}`);
   } catch (error) {
