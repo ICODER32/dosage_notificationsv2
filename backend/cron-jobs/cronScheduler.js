@@ -350,11 +350,14 @@ function scheduleNightlyRefresh() {
   });
 }
 
+
+
+/**
+ * Calculate remaining pill days + send low-pill alerts
+ */
 export async function checkLowPills() {
   const now = moment.utc();
-  console.log(
-    `🧾 Low-pill check running at ${now.format("YYYY-MM-DD HH:mm:ss z")}`
-  );
+  console.log(`🧾 Low-pill check running at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`);
 
   try {
     const users = await User.find({
@@ -363,7 +366,7 @@ export async function checkLowPills() {
     });
 
     for (const user of users) {
-      if (!user.prescriptions || user.prescriptions.length === 0) continue;
+      if (!user.prescriptions?.length) continue;
 
       const lowPillPrescriptions = [];
 
@@ -372,58 +375,44 @@ export async function checkLowPills() {
         const timesToTake = prescription.timesToTake || 1;
         const dosage = prescription.dosage || 1;
 
-        // Each day consumes dosage * timesToTake pills
         const pillsPerDay = dosage * timesToTake;
 
-        // If you’re tracking remaining pills dynamically, replace this with prescription.tracking.remainingCount
-        const remainingPills =
-          prescription.tracking?.pillCount ?? totalPills;
+        // ✅ Always use live remaining count
+        const remainingPills = prescription.tracking?.pillCount ?? totalPills;
 
-        if (!remainingPills || remainingPills <= 0) continue;
-
-        // Check if there are any pending schedule items for this prescription
-        const hasPendingSchedule = user.medicationSchedule.some(
-          (item) =>
-            item.prescriptionName === prescription.name &&
-            item.status === "pending"
-        );
+        // Skip invalid or empty values
+        if (remainingPills <= 0 || pillsPerDay <= 0) continue;
 
         const daysLeft = remainingPills / pillsPerDay;
 
-        // Trigger if:
-        // 1. Days left is <= 1 (original logic)
-        // 2. OR schedule is exhausted (no pending items) but we still have pills (tracking issue or missed doses)
-        if ((daysLeft <= 1 || !hasPendingSchedule) && remainingPills > 0) {
+        console.log({
+          user: user.phoneNumber,
+          prescription: prescription.name,
+          remainingPills,
+          pillsPerDay,
+          daysLeft,
+        });
+
+        // 🔔 Trigger if ≤ 1 day of pills left
+        if (daysLeft <= 1) {
           lowPillPrescriptions.push({
             name: prescription.name,
             daysLeft: daysLeft.toFixed(1),
-            reason: !hasPendingSchedule ? "schedule_exhausted" : "low_pills",
           });
         }
       }
 
-      if (lowPillPrescriptions.length > 0) {
-        const message = `⚠️ You have 1 day or less of pills left OR your schedule is finished for:\n${lowPillPrescriptions
-          .map(
-            (m) =>
-              `• ${m.name} (${m.reason === "schedule_exhausted"
-                ? "Schedule ended, Refill required"
-                : `${m.daysLeft} days left`
-              })`
-          )
-          .join(
-            "\n"
-          )}\n\nPlease arrange a refill soon.\nThank you for using CareTrackRx!`;
+      if (lowPillPrescriptions.length === 0) continue;
 
-        try {
-          await sendSMS(user.phoneNumber, message);
-          console.log(`💊 Low-pill/Refill reminder sent to ${user.phoneNumber}`);
-        } catch (error) {
-          console.error(
-            `❌ Failed low-pill SMS for ${user.phoneNumber}:`,
-            error.message
-          );
-        }
+      const message = `⚠️ You have 1 day or less of pills left for:\n${lowPillPrescriptions
+        .map(m => `• ${m.name} (${m.daysLeft} days left)`)
+        .join("\n")}\n\nPlease arrange a refill soon.\nThank you for using CareTrackRx!`;
+
+      try {
+        await sendSMS(user.phoneNumber, message);
+        console.log(`💊 Low-pill reminder sent to ${user.phoneNumber}`);
+      } catch (error) {
+        console.error(`❌ Failed low-pill SMS for ${user.phoneNumber}:`, error.message);
       }
     }
   } catch (err) {
@@ -432,71 +421,55 @@ export async function checkLowPills() {
 }
 
 /**
- * Cron Job — Low-pill reminder (less than 2 days left)
- * Runs daily at 9 AM UTC
+ * Cron Job — runs daily at 2 PM Pakistan Time (9 AM UTC)
  */
 export function startLowPillCheckCron() {
-  // Runs every day at 9 AM Pakistan time
-  cron.schedule(
-    "0 14 * * *",
-    checkLowPills
-  );
+  cron.schedule("0 14 * * *", checkLowPills);
 }
 
+
+
 /**
- * Cron Job — Prescription over (pill count = 0)
- * Runs daily at 10 AM UTC
+ * 🔚 Prescription Finished = pillCount <= 0
  */
 export function startPrescriptionOverCron() {
   cron.schedule("0 10 * * *", async () => {
     const now = moment.utc();
-    console.log(
-      `🗑️ Prescription-over check at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`
-    );
+    console.log(`🗑️ Prescription-over check at ${now.format("YYYY-MM-DD HH:mm:ss")} UTC`);
 
     try {
       const users = await User.find({ status: "active" });
 
       for (const user of users) {
-        if (!user.prescriptions || user.prescriptions.length === 0) continue;
+        if (!user.prescriptions?.length) continue;
 
         const zeroPillPrescriptions = user.prescriptions.filter(
-          (p) => p.tracking && p.tracking.pillCount <= 0 && !p.finishedNotified
+          p => (p.tracking?.pillCount ?? 0) <= 0 && !p.finishedNotified
         );
 
-        if (zeroPillPrescriptions.length === 0) continue;
+        if (!zeroPillPrescriptions.length) continue;
 
-        // Send message before deleting
-        const message = `✅ Your prescription period is complete for:\n${zeroPillPrescriptions
-          .map((p) => `• ${p.name}`)
-          .join(
-            "\n"
-          )}\n\nPlease contact your doctor if you need a refill.\nStay healthy!`;
+        const message = `✅ Your prescription has finished for:\n${zeroPillPrescriptions
+          .map(p => `• ${p.name}`)
+          .join("\n")}\n\nPlease refill or contact your doctor if needed.`;
 
         try {
           await sendSMS(user.phoneNumber, message);
           console.log(`📨 Prescription-over SMS sent to ${user.phoneNumber}`);
 
-          // Mark as notified
-          zeroPillPrescriptions.forEach(p => p.finishedNotified = true);
+          // Mark notified so message does not repeat
+          zeroPillPrescriptions.forEach(p => (p.finishedNotified = true));
           await user.save();
-
         } catch (error) {
-          console.error(
-            `❌ Failed to send end SMS to ${user.phoneNumber}:`,
-            error
-          );
+          console.error(`❌ Failed to send completion SMS to ${user.phoneNumber}:`, error.message);
         }
-
-        // User deletion removed. Only notifying.
-        // await User.deleteOne({ _id: user._id });
-        // console.log(`🗑️ User ${user.phoneNumber} deleted due to zero pills.`);
       }
     } catch (err) {
-      console.error("🚨 Error in prescription-over cron:", err);
+      console.error("🚨 Error in prescription-over cron:", err.message);
     }
   });
 }
+
 
 // Uncomment if you want to auto-refresh
 // scheduleNightlyRefresh();

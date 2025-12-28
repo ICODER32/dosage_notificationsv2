@@ -11,6 +11,8 @@ import cron from "node-cron";
 import moment from "moment";
 import { DateTime } from "luxon";
 import momenttimezone from "moment-timezone";
+import zipcodeToTimezone from "zipcode-to-timezone";
+import cityTimezones from "city-timezones";
 
 configDotenv();
 const router = express.Router();
@@ -39,19 +41,7 @@ cron.schedule("0 1 * * *", async () => {
 // SMS Reply Handler
 router.post("/sms/reply", async (req, res) => {
   console.log("Received SMS reply:", req.body);
-  // write logs in file
-  const logMessage = `Received SMS reply: ${JSON.stringify(req.body)}\n`;
-  // if file is not there create first
-  if (!fs.existsSync("sms-logs.txt")) {
-    fs.writeFileSync("sms-logs.txt", "");
-  }
-  // append log message
 
-  fs.appendFile("sms-logs.txt", logMessage, (err) => {
-    if (err) {
-      console.error("Error writing to log file:", err);
-    }
-  });
   const from = req.body.From;
   const msg = req.body.Body?.trim();
   console.log(`Received message from ${from}: ${msg}`);
@@ -72,6 +62,26 @@ router.post("/sms/reply", async (req, res) => {
     user.temp = {};
   }
   // UPDATE TIME ZONE
+  let newTimezone = null;
+
+  // 1. Try Zip Code (Best for US)
+  if (req.body.FromZip) {
+    newTimezone = zipcodeToTimezone.lookup(req.body.FromZip);
+    console.log("newTimezone", newTimezone);
+  }
+
+  // 2. If no zip match, try City + Country (Worldwide)
+  if (!newTimezone && req.body.FromCity && req.body.FromCountry) {
+    const cityData = cityTimezones.lookupViaCity(req.body.FromCity);
+    if (cityData && cityData.length > 0) {
+      // Find match for the specific country
+      const countryMatch = cityData.find(c => c.iso2 === req.body.FromCountry) || cityData[0];
+      if (countryMatch) {
+        newTimezone = countryMatch.timezone;
+      }
+    }
+  }
+
   const stateTimezones = {
     AL: "America/Chicago", // Alabama – Central
     AK: "America/Anchorage", // Most of Alaska (excluding Aleutian Islands)
@@ -126,11 +136,13 @@ router.post("/sms/reply", async (req, res) => {
     WY: "America/Denver",
     DEU: "Europe/Berlin", // Germany – CET/CEST
   };
-  if (req.body.FromState && stateTimezones[req.body.FromState]) {
-    user.timezone = stateTimezones[req.body.FromState];
-  } else {
-    user.timezone = "America/New_York";
+
+  if (!newTimezone && req.body.FromState && stateTimezones[req.body.FromState]) {
+    newTimezone = stateTimezones[req.body.FromState];
   }
+
+  // Set the timezone, defaulting to New York if still unknown
+  user.timezone = newTimezone || "America/New_York";
 
   await user.save();
 
@@ -848,11 +860,11 @@ For more details and history, please visit your dashboard: ${process.env.DASHBOA
 // Helper function to send messages
 async function sendMessage(phone, message) {
   try {
-    await client.messages.create({
-      body: message,
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: `+${phone}`, // Use SMS format if needed
-    });
+    // await client.messages.create({
+    //   body: message,
+    //   from: process.env.TWILIO_PHONE_NUMBER,
+    //   to: `+${phone}`, // Use SMS format if needed
+    // });
     console.log(message);
     console.log(`Message sent to ${phone}: ${message}`);
   } catch (error) {
